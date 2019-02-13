@@ -330,6 +330,16 @@ ggplot(data = buildingTC) +
 
 
 
+####trying things####
+
+# TC_vg_top_signals <- filter(long_train, long_train$BUILDINGID =="TC", long_train$signalQuality =="1. Top signal" | long_train$signalQuality =="2. Very Good signal") 
+# 
+# ggplot(data = TC_vg_top_signals) +
+#   aes(x = LONGITUDE, y = LATITUDE, color = WAPid) +
+#   geom_point() +
+#   theme_minimal()+
+#   facet_wrap(vars(FLOOR))
+
 
 # ####TO DO!#####
 # decisonTree <- ctree(brand ~ salary + age, data = cr)
