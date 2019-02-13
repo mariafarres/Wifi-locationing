@@ -16,109 +16,109 @@ original_test <- read_csv("./validationData.csv")
 #### PRE-PROCESSING ####
 
 #### SET NAs to low intensity RSSI in wide format #####
-widetrain <- original_train
-widetest <- original_test
+wide_train <- original_train
+wide_test <- original_test
 
-widetrain[, 1:520][widetrain[, 1:520] == 100] <- -105 # place them as low signal 
-widetest[, 1:520][widetest[, 1:520] == 100] <- -105 
+wide_train[, 1:520][wide_train[, 1:520] == 100] <- -105 # place them as low signal 
+wide_test[, 1:520][wide_test[, 1:520] == 100] <- -105 
 
 
 #### SET NAs to low intensity RSSI in long format #####
 
 # melt original_train to change [ , 1:520] attributes to variables (WAPs as ID)
 varnames <- colnames(original_train[,521:529])
-longtrain <- melt(original_train, id.vars = varnames)
-names(longtrain)[10]<- paste("WAPid")
-names(longtrain)[11]<- paste("WAPrecord")
-longtrain[,11][longtrain[, 11] == 100] <- -105 
+long_train <- melt(original_train, id.vars = varnames)
+names(long_train)[10]<- paste("WAPid")
+names(long_train)[11]<- paste("WAPrecord")
+long_train[,11][long_train[, 11] == 100] <- -105 
 
 
 
 # melt original_test 
 varnames.test <- colnames(original_test[,521:529])
-longtest <- melt(original_test, id.vars = varnames.test)
-names(longtest)[10]<- paste("WAPid")
-names(longtest)[11]<- paste("WAPrecord")
-longtest[,11][longtest[, 11] == 100] <- -105 
+long_test <- melt(original_test, id.vars = varnames.test)
+names(long_test)[10]<- paste("WAPid")
+names(long_test)[11]<- paste("WAPrecord")
+long_test[,11][long_test[, 11] == 100] <- -105 
 
 
 
 
 
 ##### SET NAs Remove -105 dbm to reduce sample size ####
-longtrain <- filter(longtrain, longtrain$WAPrecord != -105)
-longtest <- filter(longtest, longtest$WAPrecord != -105)
+long_train <- filter(long_train, long_train$WAPrecord != -105)
+long_test <- filter(long_test, long_test$WAPrecord != -105)
 
 
 #### DUPLICATES ####
-longtrain <- unique(longtrain)
+long_train <- unique(long_train)
 
 
 #### DATA TYPES ####
 
 # TRAIN
-longtrain$FLOOR <- as.factor(longtrain$FLOOR)
-longtrain$BUILDINGID <- as.factor(longtrain$BUILDINGID)
-levels(longtrain$BUILDINGID) <- c("TI",
+long_train$FLOOR <- as.factor(long_train$FLOOR)
+long_train$BUILDINGID <- as.factor(long_train$BUILDINGID)
+levels(long_train$BUILDINGID) <- c("TI",
                                   "TD",
                                   "TC")
-longtrain$SPACEID <- as.factor(longtrain$SPACEID)
-longtrain$RELATIVEPOSITION <- as.factor(longtrain$RELATIVEPOSITION)
-levels(longtrain$RELATIVEPOSITION) <- c("Inside",
+long_train$SPACEID <- as.factor(long_train$SPACEID)
+long_train$RELATIVEPOSITION <- as.factor(long_train$RELATIVEPOSITION)
+levels(long_train$RELATIVEPOSITION) <- c("Inside",
                                      "Outside")
-longtrain$USERID <- as.factor(longtrain$USERID)
-longtrain$PHONEID <- as.factor(longtrain$PHONEID)
-longtrain$WAPid <- as.factor(longtrain$WAPid)
-longtrain$TIMESTAMP <- as.POSIXct(longtrain$TIMESTAMP, origin="1970-01-01")
+long_train$USERID <- as.factor(long_train$USERID)
+long_train$PHONEID <- as.factor(long_train$PHONEID)
+long_train$WAPid <- as.factor(long_train$WAPid)
+long_train$TIMESTAMP <- as.POSIXct(long_train$TIMESTAMP, origin="1970-01-01")
 
 
 
-widetrain$FLOOR <- as.factor(widetrain$FLOOR)
-widetrain$BUILDINGID <- as.factor(widetrain$BUILDINGID)
-levels(widetrain$BUILDINGID) <- c("TI",
+wide_train$FLOOR <- as.factor(wide_train$FLOOR)
+wide_train$BUILDINGID <- as.factor(wide_train$BUILDINGID)
+levels(wide_train$BUILDINGID) <- c("TI",
                                   "TD",
                                   "TC")
-widetrain$SPACEID <- as.factor(widetrain$SPACEID)
-widetrain$RELATIVEPOSITION <- as.factor(widetrain$RELATIVEPOSITION)
-levels(widetrain$RELATIVEPOSITION) <- c("Inside",
+wide_train$SPACEID <- as.factor(wide_train$SPACEID)
+wide_train$RELATIVEPOSITION <- as.factor(wide_train$RELATIVEPOSITION)
+levels(wide_train$RELATIVEPOSITION) <- c("Inside",
                                      "Outside")
-widetrain$USERID <- as.factor(widetrain$USERID)
-widetrain$PHONEID <- as.factor(widetrain$PHONEID)
-widetrain$TIMESTAMP <- as.POSIXct(widetrain$TIMESTAMP, origin="1970-01-01")
+wide_train$USERID <- as.factor(wide_train$USERID)
+wide_train$PHONEID <- as.factor(wide_train$PHONEID)
+wide_train$TIMESTAMP <- as.POSIXct(wide_train$TIMESTAMP, origin="1970-01-01")
 
 
 
 # TEST
 
-longtest$FLOOR <- as.factor(longtest$FLOOR)
-longtest$BUILDINGID <- as.factor(longtest$BUILDINGID)
-levels(longtest$BUILDINGID) <- c("TI",
+long_test$FLOOR <- as.factor(long_test$FLOOR)
+long_test$BUILDINGID <- as.factor(long_test$BUILDINGID)
+levels(long_test$BUILDINGID) <- c("TI",
                                   "TD",
                                   "TC")
-longtest$SPACEID <- as.factor(longtest$SPACEID)
-longtest$RELATIVEPOSITION <- as.factor(longtest$RELATIVEPOSITION)
-levels(longtest$RELATIVEPOSITION) <- c("Inside",
+long_test$SPACEID <- as.factor(long_test$SPACEID)
+long_test$RELATIVEPOSITION <- as.factor(long_test$RELATIVEPOSITION)
+levels(long_test$RELATIVEPOSITION) <- c("Inside",
                                      "Outside")
-longtest$USERID <- as.factor(longtest$USERID)
-longtest$PHONEID <- as.factor(longtest$PHONEID)
-longtest$WAPid <- as.factor(longtest$WAPid)
-longtest$TIMESTAMP <- as.POSIXct(longtest$TIMESTAMP, origin="1970-01-01")
+long_test$USERID <- as.factor(long_test$USERID)
+long_test$PHONEID <- as.factor(long_test$PHONEID)
+long_test$WAPid <- as.factor(long_test$WAPid)
+long_test$TIMESTAMP <- as.POSIXct(long_test$TIMESTAMP, origin="1970-01-01")
 
 
 
 
-widetest$FLOOR <- as.factor(widetest$FLOOR)
-widetest$BUILDINGID <- as.factor(widetest$BUILDINGID)
-levels(widetest$BUILDINGID) <- c("TI",
+wide_test$FLOOR <- as.factor(wide_test$FLOOR)
+wide_test$BUILDINGID <- as.factor(wide_test$BUILDINGID)
+levels(wide_test$BUILDINGID) <- c("TI",
                                   "TD",
                                   "TC")
-widetest$SPACEID <- as.factor(widetest$SPACEID)
-widetest$RELATIVEPOSITION <- as.factor(widetest$RELATIVEPOSITION)
-levels(widetest$RELATIVEPOSITION) <- c("Inside",
+wide_test$SPACEID <- as.factor(wide_test$SPACEID)
+wide_test$RELATIVEPOSITION <- as.factor(wide_test$RELATIVEPOSITION)
+levels(wide_test$RELATIVEPOSITION) <- c("Inside",
                                      "Outside")
-widetest$USERID <- as.factor(widetest$USERID)
-widetest$PHONEID <- as.factor(widetest$PHONEID)
-widetrain$TIMESTAMP <- as.POSIXct(widetrain$TIMESTAMP, origin="1970-01-01")
+wide_test$USERID <- as.factor(wide_test$USERID)
+wide_test$PHONEID <- as.factor(wide_test$PHONEID)
+wide_train$TIMESTAMP <- as.POSIXct(wide_train$TIMESTAMP, origin="1970-01-01")
 
 
 
@@ -126,25 +126,25 @@ widetrain$TIMESTAMP <- as.POSIXct(widetrain$TIMESTAMP, origin="1970-01-01")
 #### FEATURE SELECTION & ENGINEERING ####
 ## Create new attribute BUILDING-FLOOR
 
-longtrain$BuildingFloor <- paste(longtrain$BUILDINGID, longtrain$FLOOR, sep = "-")
-longtest$BuildingFloor <- paste(longtest$BUILDINGID, longtest$FLOOR, sep = "-")
+long_train$BuildingFloor <- paste(long_train$BUILDINGID, long_train$FLOOR, sep = "-")
+long_test$BuildingFloor <- paste(long_test$BUILDINGID, long_test$FLOOR, sep = "-")
 
-widetrain$BuildingFloor <- paste(widetrain$BUILDINGID, widetrain$FLOOR, sep = "-")
-widetest$BuildingFloor <- paste(widetest$BUILDINGID, widetest$FLOOR, sep = "-")
+wide_train$BuildingFloor <- paste(wide_train$BUILDINGID, wide_train$FLOOR, sep = "-")
+wide_test$BuildingFloor <- paste(wide_test$BUILDINGID, wide_test$FLOOR, sep = "-")
 
 
 
 #### ANALYSE DISTRIBUTION ####
 
 # Records distributed by Building and floor in TRAIN
-ggplot(data = longtrain) +
+ggplot(data = long_train) +
   aes(x = WAPrecord, fill = FLOOR) +
   geom_histogram(bins = 30) +
   theme_minimal() +
   facet_wrap(vars(BUILDINGID))
 
 # In TEST 
-ggplot(data = longtest) +
+ggplot(data = long_test) +
   aes(x = WAPrecord, fill = FLOOR) +
   geom_histogram(bins = 30) +
   theme_minimal() +
@@ -153,21 +153,21 @@ ggplot(data = longtest) +
 
 
 # Records distributed by location and floor in TRAIN
-ggplot(data = longtrain) +
+ggplot(data = long_train) +
   aes(x = LONGITUDE, y = LATITUDE, color = FLOOR) +
   geom_point() +
   theme_minimal()
 
 
 # In TEST
-ggplot(data = longtest) +
+ggplot(data = long_test) +
   aes(x = LONGITUDE, y = LATITUDE, color = FLOOR) +
   geom_point() +
   theme_minimal()
 
 
 #### ANALYSE TOP SIGNALS ####
-tooGood_signals <- longtrain %>% filter(WAPrecord > -30)
+tooGood_signals <- long_train %>% filter(WAPrecord > -30)
 
 # boxplot by WAPS in each building
 ggplot(data = tooGood_signals) +
@@ -199,7 +199,7 @@ ggplot(data = tooGood_signals) +
 
 
 ##### user 6 behaviour analysis ####
-USER6 <- longtrain %>% filter(USERID == 6)
+USER6 <- long_train %>% filter(USERID == 6)
 
 # it gives bad results but it also records reasonable RSSI
 ggplot(data = USER6) +
@@ -208,7 +208,7 @@ ggplot(data = USER6) +
   theme_minimal()
 
 ## TC Floor 3-4 analysis 
-TC3_exploration <- longtrain %>% filter(BuildingFloor == "TC-3")
+TC3_exploration <- long_train %>% filter(BuildingFloor == "TC-3")
 
 # User 6 captured a big proportion of data in TC3 and TC4
 ggplot(data = TC3_exploration) +
@@ -217,7 +217,7 @@ ggplot(data = TC3_exploration) +
   theme_minimal()
 
 
-TC4_exploration <- longtrain %>% filter(BuildingFloor == "TC-4")
+TC4_exploration <- long_train %>% filter(BuildingFloor == "TC-4")
 
 ggplot(data = TC4_exploration) +
   aes(x = WAPrecord, fill = USERID) +
@@ -227,7 +227,7 @@ ggplot(data = TC4_exploration) +
 
 # what would happen in terms of data amount if we removed user 6 records?
 
-TC_exploration <- longtrain %>% filter(BUILDINGID == "TC")
+TC_exploration <- long_train %>% filter(BUILDINGID == "TC")
 
 ggplot(data = TC_exploration) +
   aes(x = FLOOR, weight = WAPrecord) +
@@ -237,19 +237,19 @@ ggplot(data = TC_exploration) +
 
 
 # as user 6 represents a big part of the records of TC3&4, we only remove the mistaken data >-30
-longtrain <- longtrain %>% filter(WAPrecord <= -30)
+long_train <- long_train %>% filter(WAPrecord <= -30)
 
 
 #### CHECK RSSI WEIGHT  ####
 
-longtrain$signalQuality <- ifelse(longtrain$WAPrecord >=-66, "Top signal",
-                                  ifelse(longtrain$WAPrecord >=-69, "Very Good signal",
-                                         ifelse(longtrain$WAPrecord >=-79, "Good signal",
-                                                ifelse(longtrain$WAPrecord >=-89, "Bad signal",
-                                                       "Very bad signal"))))
+long_train$signalQuality <- ifelse(long_train$WAPrecord >=-66, "1. Top signal",
+                                  ifelse(long_train$WAPrecord >=-69, "2. Very Good signal",
+                                         ifelse(long_train$WAPrecord >=-79, "3. Good signal",
+                                                ifelse(long_train$WAPrecord >=-89, "4. Bad signal",
+                                                       "5. Very bad signal"))))
                                   
 # Signal intensity distribution
-ggplot(data = longtrain) +
+ggplot(data = long_train) +
   aes(x = WAPrecord, fill = signalQuality) +
   geom_histogram(bins = 30) +
   theme_minimal() +
@@ -258,42 +258,74 @@ ggplot(data = longtrain) +
 
 
 # Do Top signal WAPs cover all buildings? not completely!
-TOPsignals_df <- filter(longtrain, longtrain$signalQuality =="Top signal")
+top_signals_df <- filter(long_train, long_train$signalQuality =="1. Top signal")
 
   # all waps
-ggplot(data = longtrain) +
+ggplot(data = long_train) +
   aes(x = LONGITUDE, y = LATITUDE) +
   geom_point(color = "#0c4c8a") +
   theme_minimal()
 
   # only TOP signal waps 
-ggplot(data = TOPsignals_df) +
+ggplot(data = top_signals_df) +
   aes(x = LONGITUDE, y = LATITUDE) +
   geom_point(color = "#0c4c8a") +
   theme_minimal()
 
 
-# What about top & VG signals
-VGandTOPsignals_df <- filter(longtrain, longtrain$signalQuality =="Top signal" | longtrain$signalQuality =="Veri Good signal") 
+
+# What about top & VG signals?
+vg_top_signals <- filter(long_train, long_train$signalQuality =="1. Top signal" | long_train$signalQuality =="2. Very Good signal") 
+
+  # only TOP AND VG signal waps 
+ggplot(data = vg_top_signals) +
+  aes(x = LONGITUDE, y = LATITUDE, fill = signalQuality) +
+  geom_point(color = "#0c4c8a") +
+  theme_minimal()
 
 
 
-
-
-# filter by building and floor
+# filter by building and floor to examine signals further
 
 building_floor_df <- c()
 WAPid_count <- c()
 
-building_floor <- unique(longtrain$BuildingFloor)
+building_floor <- unique(long_train$BuildingFloor)
 
 for (bf in building_floor) {
-  building_floor_df[[bf]] <- filter(longtrain, BuildingFloor == bf)
+  building_floor_df[[bf]] <- as.data.frame(filter(long_train, BuildingFloor == bf))
   
   WAPid_count[[bf]] <- distinct(building_floor_df[[bf]], WAPid, .keep_all= TRUE) # Find the WAPs in each floor and building
   
   detection <- (WAPid_count[[bf]]$WAPid %in% WAPid_count[[bf]]$WAPid ==TRUE) # 146 WAPs  appear in two df at the same time
 }
+
+
+#3D plot per building and floor to check RSSI 
+  #TI
+buildingTI <- filter(long_train, long_train$BUILDINGID =="TI")
+ggplot(data = buildingTI) +
+  aes(x = LONGITUDE, y = LATITUDE, color = signalQuality) +
+  geom_point() +
+  theme_minimal() +
+  facet_wrap(vars(FLOOR))
+
+  #TD
+
+buildingTD<- filter(long_train, long_train$BUILDINGID =="TD")
+ggplot(data = buildingTD) +
+  aes(x = LONGITUDE, y = LATITUDE, color = signalQuality) +
+  geom_point() +
+  theme_minimal() +
+  facet_wrap(vars(FLOOR))
+
+  #TC
+buildingTC<- filter(long_train, long_train$BUILDINGID =="TC")
+ggplot(data = buildingTC) +
+  aes(x = LONGITUDE, y = LATITUDE, color = signalQuality) +
+  geom_point() +
+  theme_minimal() +
+  facet_wrap(vars(FLOOR))
 
 
 
