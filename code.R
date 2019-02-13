@@ -6,10 +6,9 @@ pacman:: p_load("readr","dplyr", "tidyr", "ggplot2", "plotly",
                 "data.table", "reshape2","ggridges", "party",
                 "esquisse", "caret", "randomForest")
 
-original_train <- read_csv("C:/Users/usuario/Desktop/UBIQUM/Project 8 - Wifi locationing/trainingData.csv")
-original_test <- read_csv("C:/Users/usuario/Desktop/UBIQUM/Project 8 - Wifi locationing/validationData.csv")
-
-
+setwd("C:/Users/usuario/Desktop/UBIQUM/Project 8 - Wifi locationing")
+original_train <- read_csv("./trainingData.csv")
+original_test <- read_csv("./validationData.csv")
 
 
 
@@ -168,10 +167,10 @@ ggplot(data = longtest) +
 
 
 #### ANALYSE TOP SIGNALS ####
-TOPsignals <- longtrain %>% filter(WAPrecord > -30)
+tooGood_signals <- longtrain %>% filter(WAPrecord > -30)
 
 # boxplot by WAPS in each building
-ggplot(data = TOPsignals) +
+ggplot(data = tooGood_signals) +
   aes(x = WAPid, y = WAPrecord, fill = BUILDINGID) +
   geom_boxplot() +
   theme_minimal()+ 
@@ -179,20 +178,20 @@ ggplot(data = TOPsignals) +
 
 
 # histogram of TOP WAP records by bulding&floor 
-ggplot(data = TOPsignals) +
+ggplot(data = tooGood_signals) +
   aes(x = WAPrecord, fill = FLOOR) +
   geom_histogram(bins = 30) +
   theme_minimal() +
   facet_wrap(vars(BUILDINGID))
 
 # histograms phone 19-user 6 giving TOO GOOD SIGNALS
-ggplot(data = TOPsignals) +
+ggplot(data = tooGood_signals) +
   aes(x = PHONEID, fill = FLOOR) +
   geom_bar() +
   theme_minimal() +
   facet_wrap(vars(BUILDINGID))
 
-ggplot(data = TOPsignals) +
+ggplot(data = tooGood_signals) +
   aes(x = USERID, fill = FLOOR) +
   geom_bar() +
   theme_minimal() +
@@ -243,6 +242,44 @@ longtrain <- longtrain %>% filter(WAPrecord <= -30)
 
 #### CHECK RSSI WEIGHT  ####
 
+longtrain$signalQuality <- ifelse(longtrain$WAPrecord >=-66, "Top signal",
+                                  ifelse(longtrain$WAPrecord >=-69, "Very Good signal",
+                                         ifelse(longtrain$WAPrecord >=-79, "Good signal",
+                                                ifelse(longtrain$WAPrecord >=-89, "Bad signal",
+                                                       "Very bad signal"))))
+                                  
+# Signal intensity distribution
+ggplot(data = longtrain) +
+  aes(x = WAPrecord, fill = signalQuality) +
+  geom_histogram(bins = 30) +
+  theme_minimal() +
+  facet_wrap(vars(BUILDINGID))
+
+
+
+# Do Top signal WAPs cover all buildings? not completely!
+TOPsignals_df <- filter(longtrain, longtrain$signalQuality =="Top signal")
+
+  # all waps
+ggplot(data = longtrain) +
+  aes(x = LONGITUDE, y = LATITUDE) +
+  geom_point(color = "#0c4c8a") +
+  theme_minimal()
+
+  # only TOP signal waps 
+ggplot(data = TOPsignals_df) +
+  aes(x = LONGITUDE, y = LATITUDE) +
+  geom_point(color = "#0c4c8a") +
+  theme_minimal()
+
+
+# What about top & VG signals
+VGandTOPsignals_df <- filter(longtrain, longtrain$signalQuality =="Top signal" | longtrain$signalQuality =="Veri Good signal") 
+
+
+
+
+
 # filter by building and floor
 
 building_floor_df <- c()
@@ -259,3 +296,9 @@ for (bf in building_floor) {
 }
 
 
+
+
+
+# ####TO DO!#####
+# decisonTree <- ctree(brand ~ salary + age, data = cr)
+# plot(ct, tp_args = list(text = TRUE))
