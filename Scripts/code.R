@@ -45,7 +45,7 @@ long_test[,11][long_test[, 11] == 100] <- -105
 
 
 
-##### SET NAs Remove -105 dbm to reduce sample size ####
+##### Remove -105 dbm to reduce sample size ####
 long_train <- filter(long_train, long_train$WAPrecord != -105)
 long_test <- filter(long_test, long_test$WAPrecord != -105)
 
@@ -123,7 +123,7 @@ wide_train$TIMESTAMP <- as.POSIXct(wide_train$TIMESTAMP, origin="1970-01-01")
 
 
 
-#### FEATURE SELECTION & ENGINEERING ####
+#### FEATURE ENGINEERING ####
 ## Create new attribute BUILDING-FLOOR
 
 long_train$BuildingFloor <- paste(long_train$BUILDINGID, long_train$FLOOR, sep = "-")
@@ -134,7 +134,7 @@ wide_test$BuildingFloor <- paste(wide_test$BUILDINGID, wide_test$FLOOR, sep = "-
 
 
 
-#### ANALYSE DISTRIBUTION ####
+#### DESCRIPTIVE ANALYSIS ####
 
 # Records distributed by Building and floor in TRAIN
 ggplot(data = long_train) +
