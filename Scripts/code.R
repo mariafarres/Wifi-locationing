@@ -30,6 +30,7 @@ original_test <- read_csv("./validationData.csv")
 wide_train <- original_train # train in wide format
 wide_test <- original_test # test in wide format
 
+
 # long format df
 # melt original_train to change [ , 1:520] attributes to variables (WAPs as ID)
 varnames <- colnames(original_train[,521:529])
@@ -69,9 +70,15 @@ long_test <- filter(long_test, long_test$WAPrecord != -105)
 
 
 
-# DUPLICATES 
-long_train <- unique(long_train)
+# ZERO VARIANCE & DUPLICATES 
 
+# check if there are WAPs that have no variance in all their records 
+ZeroVar_detection <- nearZeroVar(wide_train, saveMetrics = TRUE) # there are 55 WAPs with 0 variance
+wide_train <- wide_train[-which(ZeroVar_detection$zeroVar== TRUE)] # we remove them as they might ditort our model
+
+# real duplicates
+wide_train <- unique(wide_train)
+long_train <- unique(long_train)
 
 
 # DATA TYPES & CLASS TREATMENT
@@ -268,6 +275,8 @@ ggplot(data = TC_exploration) +
 # we only remove the data >-30dbm that he recorded
 long_train <- long_train %>% filter(WAPrecord <= -30)
 
+waps <- grep("WAP", names(wide_train), value = TRUE) # select columns containing "WAP" in their colname
+wide_train <- wide_train %>% filter_at(waps, any_vars(. < -30)) # filter rows that do not contain values above -30dbm in WAP columns
 
 
 
@@ -346,6 +355,20 @@ ggplot(data = buildingTC) +
 
 
 
+# COUNT WAPs per BUILDING & FLOOR
+# filter by building and floor to examine signals further
+building_floor_df <- c()
+WAPid_count <- c()
+
+building_floor <- unique(long_train$BuildingFloor)
+
+for (bf in building_floor) {
+  building_floor_df[[bf]] <- as.data.frame(filter(long_train, BuildingFloor == bf))
+
+  WAPid_count[[bf]] <- distinct(building_floor_df[[bf]], WAPid, .keep_all= TRUE) # Find the WAPs in each floor and building
+
+  detection <- (WAPid_count[[bf]]$WAPid %in% WAPid_count[[bf]]$WAPid ==TRUE) # 146 WAPs  appear in two df at the same time
+}
 
 
 
@@ -353,43 +376,3 @@ ggplot(data = buildingTC) +
 
 
 
-
-
-
-
-
-
-
-
-
-# # filter by building and floor to examine signals further
-# building_floor_df <- c()
-# WAPid_count <- c()
-# 
-# building_floor <- unique(long_train$BuildingFloor)
-# 
-# for (bf in building_floor) {
-#   building_floor_df[[bf]] <- as.data.frame(filter(long_train, BuildingFloor == bf))
-#   
-#   WAPid_count[[bf]] <- distinct(building_floor_df[[bf]], WAPid, .keep_all= TRUE) # Find the WAPs in each floor and building
-#   
-#   detection <- (WAPid_count[[bf]]$WAPid %in% WAPid_count[[bf]]$WAPid ==TRUE) # 146 WAPs  appear in two df at the same time
-# }
-
-
-
-
-####trying things####
-
-# TC_vg_top_signals <- filter(long_train, long_train$BUILDINGID =="TC", long_train$signalQuality =="1. Top signal" | long_train$signalQuality =="2. Very Good signal") 
-# 
-# ggplot(data = TC_vg_top_signals) +
-#   aes(x = LONGITUDE, y = LATITUDE, color = WAPid) +
-#   geom_point() +
-#   theme_minimal()+
-#   facet_wrap(vars(FLOOR))
-
-
-# ####TO DO!#####
-# decisonTree <- ctree(brand ~ salary + age, data = cr)
-# plot(ct, tp_args = list(text = TRUE))
