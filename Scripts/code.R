@@ -256,6 +256,7 @@ ggplot(data = TC3_exploration) +
   aes(x = WAPrecord, fill = USERID) +
   geom_histogram(bins = 30) +
   theme_minimal()
+rm(TC3_exploration)
 
 
 TC4_exploration <- long_train %>% filter(BuildingFloor == "TC-4")
@@ -263,6 +264,7 @@ ggplot(data = TC4_exploration) +
   aes(x = WAPrecord, fill = USERID) +
   geom_histogram(bins = 30) +
   theme_minimal()
+rm(TC4_exploration)
 
 # User 6 captured a big proportion of data in TC3 and TC4
 # what would happen in terms of data amount if we removed user 6 records?
@@ -360,93 +362,43 @@ ggplot(data = buildingTC) +
   facet_wrap(vars(FLOOR))
 
 
-
-
-
-# COUNT WAPs per BUILDING & FLOOR
-# # filter by building and floor to examine signals further
-# building_floor_df <- c()
-# WAPid_count <- c()
-# 
-# building_floor <- unique(long_train$BuildingFloor)
-# 
-# for (bf in building_floor) {
-#   building_floor_df[[bf]] <- as.data.frame(filter(long_train, BuildingFloor == bf))
-# 
-#   WAPid_count[[bf]] <- distinct(building_floor_df[[bf]], WAPid, .keep_all= TRUE) # Find the WAPs in each floor and building
-# 
-#   detection <- (WAPid_count[[bf]]$WAPid %in% WAPid_count[[bf]]$WAPid ==TRUE) # 146 WAPs  appear in two df at the same time
-# }
-
-
-#################################### ATTRIBUTE SELECTION #######################
+######################### ATTRIBUTE SELECTION & ENGINEERING ##########################
 
 # in order to reduce dimensions but keep important information given by the waps
-# we will run a PCA to 
+# we will run a PCA to create a new data set containing components with the highest variance
+
+# Preprocess to standarize the WAPs attributes
 preProcess(wide_train[,waps], 
            method = c("center", "scale", "pca"), 
            thresh = 0.80) # PCA needed 143 components to capture 80 percent of the variance
 
-pca_wide <- prcomp(wide_train[,waps], center= TRUE, scale.= TRUE, rank. = 143)
-summary(pca_wide)
-pca_rotation_df <- as.data.frame(pca_wide$rotation) # rotation gets the components weights
-pca_wide$rotation[1:5,1:4] #Let’s look at first 4 principal components and first 5 rows.
-dim(pca_wide$x) #the matrix x has the principal component score vectors in a 19300 × 465 dimension.
-
-
+# Run PCA
+pca_wide <- prcomp(wide_train[,waps], center= TRUE, scale.= TRUE, rank. = 143) # dim(pca_wide$x) the matrix x has the principal component score vectors in a 19300 × 143 dimension
+pca_final <- pca_wide$x
+pca_wide$rotation[1:5,1:4] #  rotation gets the components weights (look at first 4 principal components and first 5 rows)
 PCs_sd <- pca_wide$sdev #compute standard deviation of each principal component
 PCs_var <- PCs_sd^2 # compute variance
-PCs_var[1:10] # find the PCs with max variance (we check variance of first 10 components) 
-# to retain as much information as possible 
+PCs_var[1:143] # find the PCs with max variance (we check variance of first 143 components) 
+              # to retain as much information as possible 
 
-var_explained <- PCs_var/sum(PCs_var) # proportion of variance explained
-var_explained[1:20] # Results:  first principal component explains 6.4% variance. 
-                              # 2nd 4% variance
-                              # 3rd 3% variance...
+var_explained <- PCs_var/sum(PCs_var) # proportion of variance explained by each component
+plot(var_explained, xlab = "Principal Component", # var_explained Results:  1st component explains 6.4% variance. 
+     ylab = "Proportion of Variance Explained",          # 2nd 4% variance
+     type = "b")                                         # 3rd 3% variance...
 
-plot(var_explained, xlab = "Principal Component", 
-     ylab = "Proportion of Variance Explained",
-     type = "b")
-
-# it shows that ~ 30 components explain around 98.4% variance in the data set. In order words, using PCA we have reduced 44 predictors to 30 without compromising on explained variance
-
-#how do we decide how many components should we select for modeling stage
+# cumulative proportion of variance explained plot  
+plot(cumsum(var_explained), xlab = "Principal Component", # shows that taking 143 components 
+       ylab = "Cumulative Proportion of Variance Explained", # results in variance close to ~ 80%
+       type = "b") 
 
 
-pca_rotation_df %>% group_by(waps) %>% summarise(variance = var(expresion)) %>% 
-  ggplot(aes(x = gene, y = varianza)) +
-  geom_col() +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# Creation of new df with Principal components instead of waps
+vars_not_waps <- wide_train[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
+                                "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
+
+train_classification <- cbind(pca_final[,1:143], vars_not_waps)
 
 
-prop_variance <- pca_wide$sdev^2 / sum(pca_wide$sdev^2)
-prop_variance_acum <- cumsum(as.data.frame(prop_variance))
-pc <- prop_variance_acum[1:9,]
-
-
-ggplot(data = data.frame(prop_variance_acum, pc),
-       aes(x = prop_variance_acum[1:9], y = prop_variance_acum, group = 1)) +
-  geom_point() +
-  geom_line() +
-  geom_label(aes(label = round(prop_variance_acum,2))) +
-  theme_bw() +
-  labs(x = "Componentes principales", 
-       y = "Prop. varianza explicada acumulada")
-
-
-
-
-
-ggplot(data = data.frame(prop_variance[1:4]),
-       aes(x = , y = prop_variance)) +
-  geom_col(width = 0.3) +
-  scale_y_continuous(limits = c(0,1)) +
-  theme_bw() +
-  labs(x = "Componente principal",
-       y = "Prop. de varianza explicada")
-
-#hacer cbind con los PC más fuertes & las otras variables
 
 
 #################################### SAMPLING & CROSS-VALIDATION #####################################
@@ -455,7 +407,8 @@ ggplot(data = data.frame(prop_variance[1:4]),
 sample_wide <- wide_train %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes x samples from each building & floor
 
 
-# Data partition <- not necessary?
+# Data partition 
+
 
 # Cross-Validation
 fitControl <- trainControl(
@@ -465,9 +418,74 @@ fitControl <- trainControl(
   repeats = 3)
 
 
+# PREPARE TRAIN 
+
+
+
+
+
 ########################################### MODELLING ###########################################
 # MODELS TRIED: GBT
 # TO TRY: C5.0, SVM/SVR, KNN, LM, Model Trees, RandomForest 
+
+
+# DECISION BASED MODELLING
+
+# GRADIENT BOOSTING TREES
+set.seed(123)
+modelGBT <- caret::train(BUILDINGID~ .,
+                         data = sample_wide, 
+                         trControl= fitControl, 
+                         method = "gbm")
+
+modelGBT$results # shrinkage 0.1; interaction depth 3; ntrees 150;  R^2 0.9972912; MAE;0.01499280 
+postResample
+
+
+set.seed(123)
+modelGBT_full <- caret::train(BUILDINGID~ .,
+                         data = train_classification, 
+                         trControl= fitControl, 
+                         ntrees= 60,
+                         method = "gbm")
+
+modelGBT_full$results 
+
+
+# RANDOM FOREST
+set.seed(123)
+waps2 <- grep("WAP", names(sample_wide), value = TRUE) 
+
+bestmtry_rf <- tuneRF(sample_wide[waps],      # look for the best mtry
+                      sample_wide$BUILDINGID, 
+                      ntreeTry=100,
+                      stepFactor=2,
+                      improve=0.05,
+                      trace=TRUE, 
+                      plot=T) # Result: 11 & 21 
+
+modelRF <- wide_train %>% randomForest(BUILDINGID ~ .,
+                                       method = "rf", 
+                                       trControl=fitControl,
+                                       tuneLength = 11) 
+
+
+
+
+#TEMA NORMALIZACI�N & DUMMIES!
+# estandarizar phone tendria sentido
+
+
+#how do we decide how many components should we select for modeling stage
+
+
+#hacer cbind con los PC más fuertes & las otras variables
+
+
+
+
+
+
 
 
 
@@ -476,41 +494,19 @@ fitControl <- trainControl(
 # Before running distance based models we need to standarize the attributes 
 # for them to be in the same scale
 # Attributes tandardization to check if it helps the model perform better 
-set.seed(123)
-standarized_df <- c()
-scaled_data <- scale(wide_train, center= TRUE)
-  
-standarized_df$waps_standarized <- scale(waps, 
-                           center = TRUE, scale = TRUE)
-existing.final$x4.standardised <- scale(existing.final$x4StarReviews, 
-                                        center = TRUE, scale = TRUE)
-existing.final$pos.standardised <- scale(existing.final$PositiveServiceReview, 
-                                         center = TRUE, scale = TRUE)
+# DUMMIFY <- + range 
 
-
-# DECISION BASED MODELLING
-# GRADIENT BOOSTED TREES
-set.seed(123)
-modelGBT <- caret::train(BUILDINGID~ .,
-                         data = sample_wide, trControl= fitControl, method = "gbm")
-
-modelGBT$results # shrinkage 0.1; interaction depth 3; ntrees 150;  R^2 0.9972912; MAE;0.01499280 
-
-
-  
-# RANDOM FOREST
-set.seed(123)
-waps <- grep("WAP", names(sample_wide), value = TRUE) 
-
-
-
-
-modelRF <- wide_train %>% randomForest(BUILDINGID ~ .,
-                        data = sample_wide, method = "rf", trControl=fitControl,
-                        tuneLength = 2) #best mtry?
 
 
 model
+
+
+
+# Preprocess to dummify the string attributes
+train_regression <- dummyVars("~BUILDINGID", data = wide_train) 
+<- data.frame(predict(existing.dummified, 
+                      newdata = existing)) # new df with dummified Product Type
+
 
 
 
@@ -533,9 +529,28 @@ sapply(widetrain_standardized, sd) # effect of standarization sd = 1
 
 # DECISION BASED
 # RANDOM FOREST
-bestmtry_rf <- tuneRF(sample_wide[waps], sample_wide$BUILDINGID, 
-                      ntreeTry=100,stepFactor=2,improve=0.05,trace=TRUE, plot=T) 
-
 
 # DISTANCE BASED
 
+
+
+
+
+
+################################# OTHER STUFF ############################
+
+
+# COUNT WAPs per BUILDING & FLOOR
+# # filter by building and floor to examine signals further
+# building_floor_df <- c()
+# WAPid_count <- c()
+# 
+# building_floor <- unique(long_train$BuildingFloor)
+# 
+# for (bf in building_floor) {
+#   building_floor_df[[bf]] <- as.data.frame(filter(long_train, BuildingFloor == bf))
+# 
+#   WAPid_count[[bf]] <- distinct(building_floor_df[[bf]], WAPid, .keep_all= TRUE) # Find the WAPs in each floor and building
+# 
+#   detection <- (WAPid_count[[bf]]$WAPid %in% WAPid_count[[bf]]$WAPid ==TRUE) # 146 WAPs  appear in two df at the same time
+# }
