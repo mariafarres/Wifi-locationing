@@ -13,7 +13,7 @@
 #Load required libraries 
 pacman:: p_load("readr","dplyr", "tidyr", "ggplot2", "plotly", 
                 "data.table", "reshape2","ggridges", "party",
-                "esquisse", "caret", "randomForest")
+                "esquisse", "caret", "randomForest", "grDevices")
 
 #Set working directory
 setwd("C:/Users/usuario/Desktop/UBIQUM/Project 8 - Wifi locationing")
@@ -75,6 +75,8 @@ long_test <- filter(long_test, long_test$WAPrecord != -105)
 # check if there are WAPs that have no variance in all their records 
 ZeroVar_detection <- nearZeroVar(wide_train, saveMetrics = TRUE) # there are 55 WAPs with 0 variance
 wide_train <- wide_train[-which(ZeroVar_detection$zeroVar== TRUE)] # we remove them as they might ditort our model
+
+
 
 # real duplicates
 wide_train <- unique(wide_train)
@@ -171,6 +173,8 @@ ggplot(data = long_train) +
   theme_minimal() +
   facet_wrap(vars(BUILDINGID))
 
+
+
 # In TEST 
   # the vast majority of records in test happen in Building TI
   # this might have an impact when applying the prediction in test set
@@ -179,7 +183,6 @@ ggplot(data = long_test) +
   geom_histogram(bins = 30) +
   theme_minimal() +
   facet_wrap(vars(BUILDINGID))
-
 
 
 # records taken distributed by location and floor in TRAIN
@@ -272,7 +275,7 @@ ggplot(data = TC_exploration) +
 
 
 # as user 6 represents a big part of the records of TC3&4, 
-# we only remove the data >-30dbm that he recorded
+# we only remove the data >-30dbm recorded; but we do not remove all user 6 records
 long_train <- long_train %>% filter(WAPrecord <= -30)
 
 waps <- grep("WAP", names(wide_train), value = TRUE) # select columns containing "WAP" in their colname
@@ -280,7 +283,9 @@ wide_train <- wide_train %>% filter_at(waps, any_vars(. < -30)) # filter rows th
 
 
 
-# CHECK RSSI WEIGHT
+
+
+# ANALYSIS OF VALUABLE SIGNALS' INTENSITY
 # this will help us group the signals by intensity, and consequently help us estimate
 # the location of the WAPs in relation to the users (useful for building prediction)
 long_train$signalQuality <- ifelse(long_train$WAPrecord >=-66, "1. Top signal",
@@ -314,6 +319,9 @@ ggplot(data = top_signals_df) +
 
 # and what if we consider "top & Very Good signals"?
 vg_top_signals <- filter(long_train, long_train$signalQuality =="1. Top signal" | long_train$signalQuality =="2. Very Good signal") 
+vg_top_signals_wide <- wide_train %>% filter_at(waps, any_vars(. > -69)) # filter WAPs with values >-69 to take them for modelling
+
+
 
   # only TOP AND VG signal waps 
 ggplot(data = vg_top_signals) +
@@ -336,7 +344,7 @@ ggplot(data = buildingTI) +
   facet_wrap(vars(FLOOR))
 
   # signals per floor 3D plot in building TD
-buildingTD<- filter(long_train, long_train$BUILDINGID =="TD")
+buildingTD <- filter(long_train, long_train$BUILDINGID =="TD")
 ggplot(data = buildingTD) +
   aes(x = LONGITUDE, y = LATITUDE, color = signalQuality) +
   geom_point() +
@@ -344,7 +352,7 @@ ggplot(data = buildingTD) +
   facet_wrap(vars(FLOOR))
 
   # signals per floor 3D plot in building TC
-buildingTC<- filter(long_train, long_train$BUILDINGID =="TC")
+buildingTC <- filter(long_train, long_train$BUILDINGID =="TC")
 ggplot(data = buildingTC) +
   aes(x = LONGITUDE, y = LATITUDE, color = signalQuality) +
   geom_point() +
@@ -356,23 +364,178 @@ ggplot(data = buildingTC) +
 
 
 # COUNT WAPs per BUILDING & FLOOR
-# filter by building and floor to examine signals further
-building_floor_df <- c()
-WAPid_count <- c()
-
-building_floor <- unique(long_train$BuildingFloor)
-
-for (bf in building_floor) {
-  building_floor_df[[bf]] <- as.data.frame(filter(long_train, BuildingFloor == bf))
-
-  WAPid_count[[bf]] <- distinct(building_floor_df[[bf]], WAPid, .keep_all= TRUE) # Find the WAPs in each floor and building
-
-  detection <- (WAPid_count[[bf]]$WAPid %in% WAPid_count[[bf]]$WAPid ==TRUE) # 146 WAPs  appear in two df at the same time
-}
-
-
+# # filter by building and floor to examine signals further
+# building_floor_df <- c()
+# WAPid_count <- c()
+# 
+# building_floor <- unique(long_train$BuildingFloor)
+# 
+# for (bf in building_floor) {
+#   building_floor_df[[bf]] <- as.data.frame(filter(long_train, BuildingFloor == bf))
+# 
+#   WAPid_count[[bf]] <- distinct(building_floor_df[[bf]], WAPid, .keep_all= TRUE) # Find the WAPs in each floor and building
+# 
+#   detection <- (WAPid_count[[bf]]$WAPid %in% WAPid_count[[bf]]$WAPid ==TRUE) # 146 WAPs  appear in two df at the same time
+# }
 
 
+#################################### ATTRIBUTE SELECTION #######################
+
+# in order to reduce dimensions but keep important information given by the waps
+# we will run a PCA to 
+preProcess(wide_train[,waps], 
+           method = c("center", "scale", "pca"), 
+           thresh = 0.80) # PCA needed 143 components to capture 80 percent of the variance
+
+pca_wide <- prcomp(wide_train[,waps], center= TRUE, scale.= TRUE, rank. = 143)
+summary(pca_wide)
+pca_rotation_df <- as.data.frame(pca_wide$rotation) # rotation gets the components weights
+pca_wide$rotation[1:5,1:4] #Let’s look at first 4 principal components and first 5 rows.
+dim(pca_wide$x) #the matrix x has the principal component score vectors in a 19300 × 465 dimension.
 
 
+PCs_sd <- pca_wide$sdev #compute standard deviation of each principal component
+PCs_var <- PCs_sd^2 # compute variance
+PCs_var[1:10] # find the PCs with max variance (we check variance of first 10 components) 
+# to retain as much information as possible 
+
+var_explained <- PCs_var/sum(PCs_var) # proportion of variance explained
+var_explained[1:20] # Results:  first principal component explains 6.4% variance. 
+                              # 2nd 4% variance
+                              # 3rd 3% variance...
+
+plot(var_explained, xlab = "Principal Component", 
+     ylab = "Proportion of Variance Explained",
+     type = "b")
+
+# it shows that ~ 30 components explain around 98.4% variance in the data set. In order words, using PCA we have reduced 44 predictors to 30 without compromising on explained variance
+
+#how do we decide how many components should we select for modeling stage
+
+
+pca_rotation_df %>% group_by(waps) %>% summarise(variance = var(expresion)) %>% 
+  ggplot(aes(x = gene, y = varianza)) +
+  geom_col() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+prop_variance <- pca_wide$sdev^2 / sum(pca_wide$sdev^2)
+prop_variance_acum <- cumsum(as.data.frame(prop_variance))
+pc <- prop_variance_acum[1:9,]
+
+
+ggplot(data = data.frame(prop_variance_acum, pc),
+       aes(x = prop_variance_acum[1:9], y = prop_variance_acum, group = 1)) +
+  geom_point() +
+  geom_line() +
+  geom_label(aes(label = round(prop_variance_acum,2))) +
+  theme_bw() +
+  labs(x = "Componentes principales", 
+       y = "Prop. varianza explicada acumulada")
+
+
+
+
+
+ggplot(data = data.frame(prop_variance[1:4]),
+       aes(x = , y = prop_variance)) +
+  geom_col(width = 0.3) +
+  scale_y_continuous(limits = c(0,1)) +
+  theme_bw() +
+  labs(x = "Componente principal",
+       y = "Prop. de varianza explicada")
+
+#hacer cbind con los PC más fuertes & las otras variables
+
+
+#################################### SAMPLING & CROSS-VALIDATION #####################################
+# Smart sampling
+
+sample_wide <- wide_train %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes x samples from each building & floor
+
+
+# Data partition <- not necessary?
+
+# Cross-Validation
+fitControl <- trainControl(
+  method = "repeatedcv",
+  predictionBounds = c(0,NA),
+  number = 10,
+  repeats = 3)
+
+
+########################################### MODELLING ###########################################
+# MODELS TRIED: GBT
+# TO TRY: C5.0, SVM/SVR, KNN, LM, Model Trees, RandomForest 
+
+
+
+
+# DISTANCE BASED MODELLING
+# Before running distance based models we need to standarize the attributes 
+# for them to be in the same scale
+# Attributes tandardization to check if it helps the model perform better 
+set.seed(123)
+standarized_df <- c()
+scaled_data <- scale(wide_train, center= TRUE)
+  
+standarized_df$waps_standarized <- scale(waps, 
+                           center = TRUE, scale = TRUE)
+existing.final$x4.standardised <- scale(existing.final$x4StarReviews, 
+                                        center = TRUE, scale = TRUE)
+existing.final$pos.standardised <- scale(existing.final$PositiveServiceReview, 
+                                         center = TRUE, scale = TRUE)
+
+
+# DECISION BASED MODELLING
+# GRADIENT BOOSTED TREES
+set.seed(123)
+modelGBT <- caret::train(BUILDINGID~ .,
+                         data = sample_wide, trControl= fitControl, method = "gbm")
+
+modelGBT$results # shrinkage 0.1; interaction depth 3; ntrees 150;  R^2 0.9972912; MAE;0.01499280 
+
+
+  
+# RANDOM FOREST
+set.seed(123)
+waps <- grep("WAP", names(sample_wide), value = TRUE) 
+
+
+
+
+modelRF <- wide_train %>% randomForest(BUILDINGID ~ .,
+                        data = sample_wide, method = "rf", trControl=fitControl,
+                        tuneLength = 2) #best mtry?
+
+
+model
+
+
+
+#LINEAR MODEL ()
+set.seed(123)
+model1_lm <- lm(BUILDINGID ~ .,
+           data = sample_wide)
+model1_lm
+
+
+# DISTANCE BASED MODELS
+
+sapply(wide_train[, waps],var) # check variance
+range(sapply(wide_train[, waps],var)) # variance seems strong in this context
+widetrain_standardized <- as.data.frame(scale(wide_train[, waps]))
+sapply(widetrain_standardized, sd) # effect of standarization sd = 1
+
+
+################################### PREDICT LONGITUDE ############################
+
+# DECISION BASED
+# RANDOM FOREST
+bestmtry_rf <- tuneRF(sample_wide[waps], sample_wide$BUILDINGID, 
+                      ntreeTry=100,stepFactor=2,improve=0.05,trace=TRUE, plot=T) 
+
+
+# DISTANCE BASED
 
