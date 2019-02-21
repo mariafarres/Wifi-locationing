@@ -516,15 +516,22 @@ confusionMatrix(buildingRF_pcs$predicted, sample_PCA$BUILDINGID) # accuracy = 99
 
 #### PREDICTING BUILDING IN TEST & RUN ERROR ANALYSIS ####
 predB_RFwaps <- predict(buildingRF_waps, newdata = wide_test)
-predB_RFpcs <- predict(buildingRF_pcs, newdata = testing_PCA)
+confusionMatrix(predB_RFwaps, wide_test$BUILDINGID)  # Accuracy in test 99,8%
 
+predB_RFpcs <- predict(buildingRF_pcs, newdata = testing_PCA)
+confusionMatrix(predB_RFpcs, wide_test$BUILDINGID)  # Accuracy in test 100%
+
+                  # Reference
+    # Prediction  TI  TD  TC
+            # TI 536   0   0
+            # TD   0 307   0
+            # TC   0   0 268
 
 
 # Create df with real and predicted results (by all models with best results)
-b_predictions <- as.data.frame(b_predictions)
-b_predictions$real <- wide_test$BUILDINGID
+b_predictions <- as.data.frame(wide_test$BUILDINGID)
 b_predictions$predictionRFwaps <- predB_RFwaps
-
+b_predictions$predictionRFpcs <- predB_RFpcs
 
 
 
@@ -536,24 +543,30 @@ b_predictions$predictionRFwaps <- predB_RFwaps
 set.seed(123)
 
 # Train a random forest using waps as independent variable to predict floor
-  # bestmtry_waps_floor <- tuneRF(sample_wide[waps],      # look for the best mtry
+  # bestmtry_waps_floor <- tuneRF(sample_wide[waps_wtr2],      # look for the best mtry
   #                       sample_wide$FLOOR,
   #                       ntreeTry=100,
   #                       stepFactor=2,
   #                       improve=0.05,
   #                       trace=TRUE,
-  #                       plot=T) # Result: 42 
+  #                       plot=T) # Result: 34
 
     # model & confusion matrix
-    # system.time(floorRF_waps <-randomForest(y= sample_wide$FLOOR,        # 0    1    2    3   4  class.error
-    #                                         x= sample_wide[waps],   # 0 2156    4    0   21   0 0.0114626318
-    #                                         importance=T,           # 1    2 2177    0    2   0 0.0018340211
-    #                                         method="rf",            # 2    0    7 2165    9   0 0.0073360844
-    #                                         ntree=100,              # 3    0    0    1 2179   1 0.0009170105
-    #                                         mtry=42)) # best mtry   # 4    0    0    0    2 725 0.0027510316                     
+    # system.time(floorRF_waps <- randomForest(y= sample_wide$FLOOR,           # 0    1    2    3   4  class.error
+    #                                         x= sample_wide[waps_wtr2],  # 0 2158    9    0   14   0     0.01055
+    #                                         importance=T,               # 1    3 2175    2    1   0     0.00275
+    #                                         method="rf",                # 2    0    3 2172    6   0     0.00413
+    #                                         ntree=100,                  # 3    0    0    2 2178   1     0.00138
+    #                                         mtry=34)) # best mtry       # 4    0    0    0    2 725     0.00275
+
+
 # saveRDS(floorRF_waps, "./Models/floorRF_waps.rds")
 floorRF_waps <- readRDS("./Models/floorRF_waps.rds")  # better results! 
-confusionMatrix(floorRF_waps$predicted, sample_wide$FLOOR)
+confusionMatrix(floorRF_waps$predicted, sample_wide$FLOOR)  # Accuracy 99.5%
+                                                            # kappa 99.4%
+
+
+
 
 # Train a random forest using pcs instead of waps (sample_PCA)
 set.seed(123)
@@ -566,12 +579,12 @@ set.seed(123)
   #                       trace=TRUE,
   #                       plot=T) # Result: 11
     # model & confusion matrix
-    # system.time(floorRF_pcs <-randomForest(y=sample_PCA$FLOOR,            # 0    1    2    3   4 class.error
-    #                                  x=sample_PCA[pcs],              # 0 2160    6    0   15   0 0.009628611
-    #                                  importance=T,                     # 1    8 2161   10    2   0 0.009170105
-    #                                  method="rf",                      # 2    0   10 2150   21   0 0.014213663
-    #                                  ntree=100,                        # 3    0    1   17 2162   1 0.008711600
-    #                                  mtry=11)) # best mtry             # 4    0    0    2    4 721 0.008253095
+    # system.time(floorRF_pcs <-randomForest(y=sample_PCA$FLOOR,                # 0    1    2    3   4 class.error
+    #                                  x=sample_PCA[pcs],                # 0   2155   11    0   15   0     0.01192
+    #                                  importance=T,                     # 1    7   2169    5    0   0     0.00550
+    #                                  method="rf",                      # 2    2     10 2152   17   0     0.01330
+    #                                  ntree=100,                        # 3    0     0     18 2161   2     0.00917
+    #                                  mtry=11)) # best mtry             # 4    0     0      0   8   719     0.01100
 
 # saveRDS(floorRF_pcs, "./Models/floorRF_pcs.rds")
 # floorRF_pcs <- readRDS("./Models/floorRF_pcs.rds")
@@ -581,11 +594,54 @@ set.seed(123)
 
 #### TESTING MODELS FOR FLOOR ####
 
-  # ISSUE: variables in the training data missing in newdata
+predF_RFwaps <- predict(floorRF_waps, newdata = wide_test) # Accuracy in test 90%
+confusionMatrix(predF_RFwaps, wide_test$FLOOR)             # kappa 87.3%
+               # Reference
+# Prediction   0   1   2   3   4
+        # 0  117   2   1   0   1
+        # 1   10 410   7   0   0
+        # 2    4  37 287   4   0
+        # 3    1  13  11 165   7
+        # 4    0   0   0   3  31
 
-predict_floorRF_waps <- predict(floorRF_waps, newdata = wide_test)
 
-predict_floorRF_pcs <- predict(floorRF_pcs, newdata = wide_test)
+ # predF_RFpcs Accuracy in test 86%; not included 
+
+
+# Create df with real and predicted results (by all models with best results)
+f_predictions <- as.data.frame(wide_test$BUILDINGID)
+f_predictions$predictionRFwaps <- predB_RFwaps
+
+
+
+
+########################################### LONGITUDE ##################################################
+
+##### TRAINING MODELS FOR LONGITUDE ####
+
+
+
+
+
+
+
+
+
+
+
+
+########################################## LATITUDE ##################################################
+
+##### TRAINING MODELS FOR LATITUDE ####
+
+
+
+
+
+
+
+
+
 
 
 wide_test$lmpredictions <- applymodel1
