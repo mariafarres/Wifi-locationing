@@ -457,13 +457,10 @@ fitControl <- trainControl(
 #### PREDICTING BUILDINGID ####
 
 options(digits = 3)
-# MODELS TRIED: RF
-# TO TRY: C5.0, SVM/SVR, KNN, LM, Model Trees, RandomForest 
-
+# MODELS TRIED: RF   |   TO TRY: C5.0, SVM/SVR, KNN, LM, Model Trees, RandomForest 
 
 # RANDOM FOREST (DECISION BASED MODEL)
 set.seed(123)
-
 # Train a random forest using waps as independent variable 
   # best mtry search for sample_wide 
     #(wide format df without zerovar & different waps & duplicates & >-30dbm)
@@ -486,7 +483,7 @@ set.seed(123)
       
 # saveRDS(buildingRF_waps, "./Models/buildingRF_waps.rds")
 # buildingRF_waps <- readRDS("./Models/buildingRF_waps.rds")
-confusionMatrix(buildingRF_waps$predicted, sample_wide$BUILDINGID) # accuracy = 99.8%
+# confusionMatrix(buildingRF_waps$predicted, sample_wide$BUILDINGID) # accuracy = 99.8%
                                                                    # kappa = 99.7%
 
 
@@ -501,14 +498,15 @@ set.seed(123)
     #                       stepFactor=2,
     #                       improve=0.05,
     #                       trace=TRUE,
-    #                       plot=T) # Result: 16
+    #                       plot=T) # Result: 4 & 16
       # model & confusion matrix
       # system.time(buildingRF_pcs <-randomForest(y=sample_PCA$BUILDINGID,             #      TI   TD   TC class.error
-      #                                  x=sample_PCA[pcs],                           # TI 2907    1    0    0.000344
+      #                                  x=sample_PCA[pcs],                             # TI 2907    1    0    0.000344
       #                                  importance=T,                                  # TD    0 2908    0    0.000000
       #                                  method="rf",                                   # TC    0   16 3619    0.004402
       #                                  ntree=100,
-      #                                  mtry=16)) # best mtry
+      #                                  mtry=4)) # best mtry
+
 
 # saveRDS(buildingRF_pcs, "./Models/buildingRF_pcs.rds")
 buildingRF_pcs <- readRDS("./Models/buildingRF_pcs.rds") # better results checking confusion matrix! 
@@ -516,28 +514,23 @@ confusionMatrix(buildingRF_pcs$predicted, sample_PCA$BUILDINGID) # accuracy = 99
                                                                    # kappa = 99.7%
 
 
-
-
-# building_predictions <- c() 
-# building_predictions$RFwaps <- buildingRF_waps$predicted
-# building_predictions$RFpcs <- buildingRF_pcs$predicted
-
-
-
-#### TESTING MODELS FOR BUILDING ####
-
+#### PREDICTING BUILDING IN TEST & RUN ERROR ANALYSIS ####
 predB_RFwaps <- predict(buildingRF_waps, newdata = wide_test)
+predB_RFpcs <- predict(buildingRF_pcs, newdata = testing_PCA)
 
 
-predB_RFpcs <- predict(buildingRF_pcs, newdata = wide_test)
 
+# Create df with real and predicted results (by all models with best results)
+b_predictions <- as.data.frame(b_predictions)
+b_predictions$real <- wide_test$BUILDINGID
+b_predictions$predictionRFwaps <- predB_RFwaps
 
 
 
 
 ############################################# FLOOR ##################################################
 
-##### TRAINING MODELS FOR FLOOR
+##### TRAINING MODELS FOR FLOOR ####
 
 # RANDOM FOREST (DECISION BASED MODEL)
 set.seed(123)
