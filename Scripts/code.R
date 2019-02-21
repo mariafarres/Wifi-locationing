@@ -16,11 +16,12 @@ pacman:: p_load("readr","dplyr", "tidyr", "ggplot2", "plotly",
                 "esquisse", "caret", "randomForest", "grDevices")
 
 #Set working directory
-setwd("C:/Users/usuario/Desktop/UBIQUM/Project 8 - Wifi locationing")
+setwd("C:/Users/usuario/Desktop/UBIQUM/Project 8 - Wifi locationing/Wifi-locationing")
+
 
 #Read initial data sets
-original_train <- read_csv("./trainingData.csv")
-original_test <- read_csv("./validationData.csv")
+original_train <- read_csv("./DataSets/trainingData.csv")
+original_test <- read_csv("./DataSets/validationData.csv")
 
 
 
@@ -29,6 +30,7 @@ original_test <- read_csv("./validationData.csv")
 # wide format df
 wide_train <- original_train # train in wide format
 wide_test <- original_test # test in wide format
+
 
 
 # long format df
@@ -44,7 +46,8 @@ long_test <- melt(original_test, id.vars = varnames.test)
 names(long_test)[10]<- paste("WAPid")
 names(long_test)[11]<- paste("WAPrecord")
 
-
+rm(original_train)
+rm(original_test)
 
 # MISSING VALUES
 # Set NAs to low intensity RSSI 
@@ -66,21 +69,6 @@ long_test[,11][long_test[, 11] == 100] <- -105
   # this helps reduce the sample size for an initial exploration
 long_train <- filter(long_train, long_train$WAPrecord != -105)
 long_test <- filter(long_test, long_test$WAPrecord != -105)
-
-
-
-
-# ZERO VARIANCE & DUPLICATES 
-
-# check if there are WAPs that have no variance in all their records 
-ZeroVar_detection <- nearZeroVar(wide_train, saveMetrics = TRUE) # there are 55 WAPs with 0 variance
-wide_train <- wide_train[-which(ZeroVar_detection$zeroVar== TRUE)] # we remove them as they might ditort our model
-
-
-
-# real duplicates
-wide_train <- unique(wide_train)
-long_train <- unique(long_train)
 
 
 # DATA TYPES & CLASS TREATMENT
@@ -148,6 +136,35 @@ levels(wide_test$RELATIVEPOSITION) <- c("Inside",
 wide_test$USERID <- as.factor(wide_test$USERID)
 wide_test$PHONEID <- as.factor(wide_test$PHONEID)
 wide_train$TIMESTAMP <- as.POSIXct(wide_train$TIMESTAMP, origin="1970-01-01")
+
+
+
+# ZERO VARIANCE & DUPLICATES 
+
+# check if there are WAPs that have no variance in all their records 
+
+ZeroVar_check_train <- nearZeroVar(wide_train[1:520], saveMetrics = TRUE) # there are 55 WAPs with 0 variance
+wide_train <- wide_train[-which(ZeroVar_check_train$zeroVar == TRUE)] # we remove them as they might ditort our model
+rm(ZeroVar_check_train)
+
+ZeroVar_check_test <- nearZeroVar(wide_test[1:520], saveMetrics = TRUE) #
+wide_test <- wide_test[-which(ZeroVar_check_test$zeroVar == TRUE)]
+rm(ZeroVar_check_test)
+
+waps_wtr <- grep("WAP", names(wide_train), value = TRUE) 
+waps_wtst <- grep("WAP", names(wide_test), value = TRUE)
+common_waps <- intersect(waps_wtst, waps_wtr)
+
+common_waps_tr<- select_at(wide_train[waps_wtr], common_waps)
+common_waps_tst <- select_at(wide_test[waps_wtst], common_waps)
+
+wide_train <- cbind(common_waps_tr, wide_train[466:474])
+wide_test <- cbind(common_waps_tst, wide_test[368:376])
+
+
+# real duplicates
+wide_train <- unique(wide_train)
+long_train <- unique(long_train)
 
 
 
@@ -273,16 +290,15 @@ ggplot(data = TC_exploration) +
   aes(x = FLOOR, fill = USERID, weight = WAPrecord) +
   geom_bar() +                  # although we could still predict T3 
   theme_minimal()               # TC4 would end up with really few data 
-
+rm(TC_exploration)
 
 
 # as user 6 represents a big part of the records of TC3&4, 
 # we only remove the data >-30dbm recorded; but we do not remove all user 6 records
 long_train <- long_train %>% filter(WAPrecord <= -30)
 
-waps <- grep("WAP", names(wide_train), value = TRUE) # select columns containing "WAP" in their colname
-wide_train <- wide_train %>% filter_at(waps, any_vars(. < -30)) # filter rows that do not contain values above -30dbm in WAP columns
-
+waps_wtr2 <- grep("WAP", names(wide_train), value = TRUE) 
+wide_train <- wide_train %>% filter_at(waps_wtr2, any_vars(. < -30)) # filter rows that do not contain values above -30dbm in WAP columns
 
 
 
@@ -368,43 +384,74 @@ ggplot(data = buildingTC) +
 # we will run a PCA to create a new data set containing components with the highest variance
 
 # Preprocess to standarize the WAPs attributes
-preProcess(wide_train[,waps], 
+preProcess(wide_train[ ,waps_wtr2], 
            method = c("center", "scale", "pca"), 
-           thresh = 0.80) # PCA needed 143 components to capture 80 percent of the variance
+           thresh = 0.80) # PCA needed 77 components to capture 80 percent of the variance
 
 # Run PCA
-pca_wide <- prcomp(wide_train[,waps], center= TRUE, scale.= TRUE, rank. = 143) # dim(pca_wide$x) the matrix x has the principal component score vectors in a 19300 × 143 dimension
-pca_final <- pca_wide$x
-pca_wide$rotation[1:5,1:4] #  rotation gets the components weights (look at first 4 principal components and first 5 rows)
-PCs_sd <- pca_wide$sdev #compute standard deviation of each principal component
-PCs_var <- PCs_sd^2 # compute variance
-PCs_var[1:143] # find the PCs with max variance (we check variance of first 143 components) 
-              # to retain as much information as possible 
+pca_train <- prcomp(wide_train[,waps_wtr2], center= TRUE, scale.= TRUE, rank. = 77) # dim(pca_train$x) the matrix x has the principal component score vectors in a 19300 × 143 dimension
+pca_tr_final <- pca_train$x
+  # pca_train$rotation[1:5,1:4] #  rotation gets the components weights (look at first 4 principal components and first 5 rows)
+  PCs_sd <- pca_train$sdev #compute standard deviation of each principal component
+  PCs_var <- PCs_sd^2 # compute variance
+  # PCs_var[1:143] # find the PCs with max variance (we check variance of first 143 components) 
+  #               # to retain as much information as possible 
 
 var_explained <- PCs_var/sum(PCs_var) # proportion of variance explained by each component
-plot(var_explained, xlab = "Principal Component", # var_explained Results:  1st component explains 6.4% variance. 
-     ylab = "Proportion of Variance Explained",          # 2nd 4% variance
-     type = "b")                                         # 3rd 3% variance...
+plot(var_explained, xlab = "Principal Component", # var_explained Results:  1st component explains 6.8% variance. 
+     ylab = "Proportion of Variance Explained",          # 2nd 5.4% variance
+     type = "b")                                         # 3rd 4.2% variance...
+
 
 # cumulative proportion of variance explained plot  
-plot(cumsum(var_explained), xlab = "Principal Component", # shows that taking 143 components 
+plot(cumsum(var_explained), xlab = "Principal Component", # shows that taking 77 components 
        ylab = "Cumulative Proportion of Variance Explained", # results in variance close to ~ 80%
        type = "b") 
 
 
+# understanding which waps are inside each PC (to apply the model to test)
+pca_rotation <- pca_train$rotation
+
+
 # Creation of new df with Principal components instead of waps
-vars_not_waps <- wide_train[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
+not_waps <- wide_train[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
                                 "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
+train_classification <- cbind(pca_tr_final[ ,1:77], not_waps)
 
-train_classification <- cbind(pca_final[,1:143], vars_not_waps)
 
+# Creation of appliedPCA-df for test
+# Preprocess to standarize the WAPs attributes
+preProcess(wide_test[,waps_test], 
+           method = c("center", "scale", "pca"), 
+           thresh = 0.80) 
+pca_test <- prcomp(wide_test[,waps_test], 
+                   center= TRUE, 
+                   scale.= TRUE, 
+                   rank. = 86) # PCA needed 86 components to capture 80 percent of the variance
+pca_tst_final <- pca_test$x
+PCs_sd_tst <- pca_test$sdev #compute standard deviation of each principal component
+PCs_var_tst <- PCs_sd_tst^2 # compute variance
+var_explained_tst <- PCs_var_tst/sum(PCs_var_tst) # proportion of variance explained by each component
+plot(var_explained_tst, xlab = "Principal Component", # var_explained Results:  1st component explains 5.6% variance. 
+     ylab = "Proportion of Variance Explained",          # 2nd 5.2% variance
+     type = "b")                                         # 3rd 4.2% variance...
+# cumulative proportion of variance explained plot  
+plot(cumsum(var_explained_tst), xlab = "Principal Component", # shows that taking 83 components from the test set
+     ylab = "Cumulative Proportion of Variance Explained in test", # results in variance close to ~ 80%
+     type = "b") 
 
+# Creation of new TEST df with Principal components instead of waps 
+not_waps_tst <- wide_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", 
+                               "LATITUDE","PHONEID")]
+test_classification <- cbind(pca_tst_final[ ,1:86], not_waps_tst)
 
 
 #################################### SAMPLING & CROSS-VALIDATION #####################################
 # Smart sampling
 
 sample_wide <- wide_train %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes x samples from each building & floor
+
+sample_class <- train_classification %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes x samples from each building & floor
 
 
 # Data partition 
@@ -425,11 +472,198 @@ fitControl <- trainControl(
 
 
 ########################################### MODELLING ###########################################
-# MODELS TRIED: GBT
+
+# Creaate and set list to contain all the predictions
+
+          # predictions_list <- c()
+          # 
+          # for (model in building_models) {
+          #   building_predictions[[model]] <- as.data.frame()
+          # }
+
+
+#### PREDICTING BUILDINGID ####
+
+options(digits = 3)
+# MODELS TRIED: RF
 # TO TRY: C5.0, SVM/SVR, KNN, LM, Model Trees, RandomForest 
 
 
-# DECISION BASED MODELLING
+# RANDOM FOREST (DECISION BASED MODEL)
+set.seed(123)
+
+# Train a random forest using waps as independent variable 
+  # best mtry search for sample_wide (wide format df without duplicates & >-30dbm)
+    # bestmtry_waps_build <- tuneRF(sample_wide[waps],      # look for the best mtry
+    #                       sample_wide$BUILDINGID, 
+    #                       ntreeTry=100,
+    #                       stepFactor=2,
+    #                       improve=0.05,
+    #                       trace=TRUE, 
+    #                       plot=T) # Result: 21 
+
+      # system.time(buildingRF_waps <-randomForest(y=sample_wide$BUILDINGID,    #      TI   TD   TC class.error
+      #                                  x=sample_wide[waps],                   # TI 2907    1    0 0.000343
+      #                                   importance=T,                         # TD    0 2908    0 0.000000
+      #                                   method="rf",                          # TC    0   22 3613 0.006052
+      #                                   ntree=100,
+      #                                   mtry=21)) # best mtry
+ 
+# saveRDS(buildingRF_waps, "./Models/buildingRF_waps.rds")
+# buildingRF_waps <- readRDS("./Models/buildingRF_waps.rds")
+# confusionMatrix(buildingRF_waps$predicted, sample_wide$BUILDINGID)
+
+
+
+# Train a random forest using pcs instead of waps (sample_class)
+pcs <- grep("PC", names(sample_class), value = TRUE) 
+set.seed(123)
+  # best mtry search for sample_class (wide format df without duplicates & >-30dbm & PCA applied)
+    # bestmtry_pcs_build <- tuneRF(sample_class[pcs],      # look for the best mtry
+    #                       sample_class$BUILDINGID, 
+    #                       ntreeTry=100,
+    #                       stepFactor=2,
+    #                       improve=0.05,
+    #                       trace=TRUE, 
+    #                       plot=T) # Result: 11 
+      # model & confusion matrix
+      # system.time(buildingRF_pcs <-randomForest(y=sample_class$BUILDINGID,             #      TI   TD   TC class.error
+      #                                  x=sample_class[pcs],                           # TI 2908    0    0 0.000000000
+      #                                  importance=T,                                  # TD    0 2908    0 0.000000000
+      #                                  method="rf",                                   # TC    0   18 3617 0.004951857
+      #                                  ntree=100,
+      #                                  mtry=11)) # best mtry
+
+# saveRDS(buildingRF_pcs, "./Models/buildingRF_pcs.rds")
+buildingRF_pcs <- readRDS("./Models/buildingRF_pcs.rds") # better results! 
+confusionMatrix(buildingRF_pcs$predicted, sample_class$BUILDINGID)
+
+
+
+
+# building_predictions <- c() 
+# building_predictions$RFwaps <- buildingRF_waps$predicted
+# building_predictions$RFpcs <- buildingRF_pcs$predicted
+
+
+
+#### TESTING MODELS FOR BUILDING ####
+
+# ISSUE: variables in the training data missing in newdata 
+  # (TEST data does not contain "SPACEID", "RELATIVEPOSITION" & "USERID")
+
+trial <- (wide_train %in% wide_test == TRUE)
+
+
+predict_floorRF_waps <- predict(floorRF_waps, newdata = wide_test)
+
+predict_floorRF_pcs <- predict(floorRF_pcs, newdata = wide_test)
+
+
+
+
+
+############################################# FLOOR ##################################################
+
+##### TRAINING MODELS FOR FLOOR
+
+# RANDOM FOREST (DECISION BASED MODEL)
+set.seed(123)
+
+# Train a random forest using waps as independent variable to predict floor
+  # bestmtry_waps_floor <- tuneRF(sample_wide[waps],      # look for the best mtry
+  #                       sample_wide$FLOOR,
+  #                       ntreeTry=100,
+  #                       stepFactor=2,
+  #                       improve=0.05,
+  #                       trace=TRUE,
+  #                       plot=T) # Result: 42 
+
+    # model & confusion matrix
+    # system.time(floorRF_waps <-randomForest(y= sample_wide$FLOOR,        # 0    1    2    3   4  class.error
+    #                                         x= sample_wide[waps],   # 0 2156    4    0   21   0 0.0114626318
+    #                                         importance=T,           # 1    2 2177    0    2   0 0.0018340211
+    #                                         method="rf",            # 2    0    7 2165    9   0 0.0073360844
+    #                                         ntree=100,              # 3    0    0    1 2179   1 0.0009170105
+    #                                         mtry=42)) # best mtry   # 4    0    0    0    2 725 0.0027510316                     
+# saveRDS(floorRF_waps, "./Models/floorRF_waps.rds")
+floorRF_waps <- readRDS("./Models/floorRF_waps.rds")  # better results! 
+confusionMatrix(floorRF_waps$predicted, sample_wide$FLOOR)
+
+# Train a random forest using pcs instead of waps (sample_class)
+set.seed(123)
+  # best mtry search for sample_class (wide format df without duplicates & >-30dbm & PCA applied)
+  # bestmtry_pcs_floor <- tuneRF(sample_class[pcs],      # look for the best mtry
+  #                       sample_class$FLOOR,
+  #                       ntreeTry=100,
+  #                       stepFactor=2,
+  #                       improve=0.05,
+  #                       trace=TRUE,
+  #                       plot=T) # Result: 11
+    # model & confusion matrix
+    # system.time(floorRF_pcs <-randomForest(y=sample_class$FLOOR,            # 0    1    2    3   4 class.error
+    #                                  x=sample_class[pcs],              # 0 2160    6    0   15   0 0.009628611
+    #                                  importance=T,                     # 1    8 2161   10    2   0 0.009170105
+    #                                  method="rf",                      # 2    0   10 2150   21   0 0.014213663
+    #                                  ntree=100,                        # 3    0    1   17 2162   1 0.008711600
+    #                                  mtry=11)) # best mtry             # 4    0    0    2    4 721 0.008253095
+
+# saveRDS(floorRF_pcs, "./Models/floorRF_pcs.rds")
+# floorRF_pcs <- readRDS("./Models/floorRF_pcs.rds")
+# confusionMatrix(floorRF_pcs$predicted, sample_class$FLOOR)
+
+
+
+#### TESTING MODELS FOR FLOOR ####
+
+  # ISSUE: variables in the training data missing in newdata
+
+predict_floorRF_waps <- predict(floorRF_waps, newdata = wide_test)
+
+predict_floorRF_pcs <- predict(floorRF_pcs, newdata = wide_test)
+
+
+wide_test$lmpredictions <- applymodel1
+# wide_test$absolute.errorlm <- abs(testing$Volume - 
+#                                   testing$lmpredictions)
+# testing$relative.errorlm <- testing$absolute.errorlm/testing$Volume
+# 
+# Errors.LM <- ggplot(data = testing, aes(x =Volume, y = absolute.errorlm))+
+#   geom_smooth()+geom_point()+ggtitle("Absolute Errors in LM")
+# Errors.LM
+# 
+# Metrics.LM <- postResample(pred = testing$lmpredictions, obs = testing$Volume)
+# 
+
+
+
+
+
+
+# # Preprocess to dummify building and incorporate it to floor prediction
+# train_regression <- dummyVars("~BUILDINGID", data = train_classification) 
+# <- data.frame(predict(existing.dummified, 
+#                       newdata = existing)) # new df with dummified Product Type
+
+
+
+
+# floor_predictions <- c()
+# long_predictions <- c()
+# lat_predictions <- c()
+# 
+
+# models_resamples <- resamples(list(RF = modelRF_class, RF = modelRF_wide))
+
+
+
+#### PREDICT LONGITUDE ####
+
+
+
+
+#### PREDICT LATITUDE ####
+
 
 # GRADIENT BOOSTING TREES
 set.seed(123)
@@ -442,52 +676,12 @@ modelGBT$results # shrinkage 0.1; interaction depth 3; ntrees 150;  R^2 0.997291
 postResample
 
 
-set.seed(123)
-modelGBT_full <- caret::train(BUILDINGID~ .,
-                         data = train_classification, 
-                         trControl= fitControl, 
-                         ntrees= 60,
-                         method = "gbm")
-
-modelGBT_full$results 
 
 
-# RANDOM FOREST
-set.seed(123)
-waps2 <- grep("WAP", names(sample_wide), value = TRUE) 
-
-bestmtry_rf <- tuneRF(sample_wide[waps],      # look for the best mtry
-                      sample_wide$BUILDINGID, 
-                      ntreeTry=100,
-                      stepFactor=2,
-                      improve=0.05,
-                      trace=TRUE, 
-                      plot=T) # Result: 11 & 21 
-
-modelRF <- wide_train %>% randomForest(BUILDINGID ~ .,
-                                       method = "rf", 
-                                       trControl=fitControl,
-                                       tuneLength = 11) 
-
-
-
-
-#TEMA NORMALIZACI�N & DUMMIES!
 # estandarizar phone tendria sentido
 
 
 #how do we decide how many components should we select for modeling stage
-
-
-#hacer cbind con los PC más fuertes & las otras variables
-
-
-
-
-
-
-
-
 
 
 # DISTANCE BASED MODELLING
@@ -495,17 +689,6 @@ modelRF <- wide_train %>% randomForest(BUILDINGID ~ .,
 # for them to be in the same scale
 # Attributes tandardization to check if it helps the model perform better 
 # DUMMIFY <- + range 
-
-
-
-model
-
-
-
-# Preprocess to dummify the string attributes
-train_regression <- dummyVars("~BUILDINGID", data = wide_train) 
-<- data.frame(predict(existing.dummified, 
-                      newdata = existing)) # new df with dummified Product Type
 
 
 
