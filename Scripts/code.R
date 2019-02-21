@@ -13,7 +13,8 @@
 #Load required libraries 
 pacman:: p_load("readr","dplyr", "tidyr", "ggplot2", "plotly", 
                 "data.table", "reshape2","ggridges", "party",
-                "esquisse", "caret", "randomForest", "grDevices")
+                "esquisse", "caret", "randomForest", 
+                "hablar")
 
 #Set working directory
 setwd("C:/Users/usuario/Desktop/UBIQUM/Project 8 - Wifi locationing/Wifi-locationing")
@@ -35,19 +36,24 @@ wide_test <- original_test # test in wide format
 
 # long format df
 # melt original_train to change [ , 1:520] attributes to variables (WAPs as ID)
-varnames <- colnames(original_train[,521:529])
-long_train <- melt(original_train, id.vars = varnames)
+vars_not_waps <- colnames(original_train[,521:529])
+long_train <- melt(original_train, id.vars = vars_not_waps)
+rm(vars_not_waps)
 names(long_train)[10]<- paste("WAPid")
 names(long_train)[11]<- paste("WAPrecord")
 
+
 # melt original_test 
-varnames.test <- colnames(original_test[,521:529])
-long_test <- melt(original_test, id.vars = varnames.test)
+vars_not_waps <- colnames(original_test[,521:529])
+long_test <- melt(original_test, id.vars = vars_not_waps)
+rm(vars_not_waps)
 names(long_test)[10]<- paste("WAPid")
 names(long_test)[11]<- paste("WAPrecord")
 
+
 rm(original_train)
 rm(original_test)
+
 
 # MISSING VALUES
 # Set NAs to low intensity RSSI 
@@ -55,13 +61,15 @@ rm(original_test)
   # instead of deleting those signals we set them to -105 in a new data frame 
   # to indicate that the signal is really low in that location
 
-wide_train[, 1:520][wide_train[, 1:520] == 100] <- -105 # place them as low signal 
-wide_test[, 1:520][wide_test[, 1:520] == 100] <- -105 
+vars_waps <- colnames(wide_train[, 1:520])
+wide_train[, vars_waps][wide_train[, vars_waps] == 100] <- -105 # place them as low signal 
+wide_test[, vars_waps][wide_test[, vars_waps] == 100] <- -105 
+rm(vars_waps)
 
 
 # Set NAs to low intensity RSSI in long format #####
-long_train[,11][long_train[, 11] == 100] <- -105 
-long_test[,11][long_test[, 11] == 100] <- -105 
+long_train[,11][long_train[, 11] == 100] <- -105 # in long_train WAPid is the only
+long_test[,11][long_test[, 11] == 100] <- -105  # attribute changed as it contains the RSSI
 
 
 
@@ -73,69 +81,41 @@ long_test <- filter(long_test, long_test$WAPrecord != -105)
 
 # DATA TYPES & CLASS TREATMENT
 
-# TRAIN
-long_train$FLOOR <- as.factor(long_train$FLOOR)
-long_train$BUILDINGID <- as.factor(long_train$BUILDINGID)
-levels(long_train$BUILDINGID) <- c("TI",
-                                  "TD",
-                                  "TC")
-long_train$SPACEID <- as.factor(long_train$SPACEID)
-long_train$RELATIVEPOSITION <- as.factor(long_train$RELATIVEPOSITION)
-levels(long_train$RELATIVEPOSITION) <- c("Inside",
-                                     "Outside")
-long_train$USERID <- as.factor(long_train$USERID)
-long_train$PHONEID <- as.factor(long_train$PHONEID)
-long_train$WAPid <- as.factor(long_train$WAPid)
-long_train$TIMESTAMP <- as.POSIXct(long_train$TIMESTAMP, origin="1970-01-01")
+# LONG FORMAT (TRAIN&TEST)
+long_train <- long_train %>% convert(num(LONGITUDE, LATITUDE, WAPrecord),   # check -> sapply(long_train, class)
+                                     fct(BUILDINGID, FLOOR, USERID, PHONEID,
+                                         RELATIVEPOSITION, SPACEID, WAPid),
+                                     dtm(TIMESTAMP))
+
+levels(long_train$BUILDINGID) <- c("TI", "TD","TC")
+levels(long_train$RELATIVEPOSITION) <- c("Inside", "Outside")
 
 
 
-wide_train$FLOOR <- as.factor(wide_train$FLOOR)
-wide_train$BUILDINGID <- as.factor(wide_train$BUILDINGID)
-levels(wide_train$BUILDINGID) <- c("TI",
-                                  "TD",
-                                  "TC")
-wide_train$SPACEID <- as.factor(wide_train$SPACEID)
-wide_train$RELATIVEPOSITION <- as.factor(wide_train$RELATIVEPOSITION)
-levels(wide_train$RELATIVEPOSITION) <- c("Inside",
-                                     "Outside")
-wide_train$USERID <- as.factor(wide_train$USERID)
-wide_train$PHONEID <- as.factor(wide_train$PHONEID)
-wide_train$TIMESTAMP <- as.POSIXct(wide_train$TIMESTAMP, origin="1970-01-01")
+long_test <- long_test %>% convert(num(LONGITUDE, LATITUDE, WAPrecord),   # check -> sapply(long_test, class)
+                                   fct(BUILDINGID, FLOOR, USERID, PHONEID,
+                                       RELATIVEPOSITION, SPACEID, WAPid),
+                                   dtm(TIMESTAMP))
+levels(long_test$BUILDINGID) <- c("TI", "TD","TC")
+levels(long_test$RELATIVEPOSITION) <- c("Inside", "Outside")
+
+
+# WIDE FORMAT
+wide_train <- wide_train %>% convert(num(LONGITUDE, LATITUDE),   # check -> sapply(wide_train, class)
+                                   fct(BUILDINGID, FLOOR, USERID, PHONEID,
+                                       RELATIVEPOSITION, SPACEID),
+                                   dtm(TIMESTAMP))
+levels(wide_train$BUILDINGID) <- c("TI", "TD","TC")
+levels(wide_train$RELATIVEPOSITION) <- c("Inside", "Outside")
 
 
 
-# TEST
-
-long_test$FLOOR <- as.factor(long_test$FLOOR)
-long_test$BUILDINGID <- as.factor(long_test$BUILDINGID)
-levels(long_test$BUILDINGID) <- c("TI",
-                                  "TD",
-                                  "TC")
-long_test$SPACEID <- as.factor(long_test$SPACEID)
-long_test$RELATIVEPOSITION <- as.factor(long_test$RELATIVEPOSITION)
-levels(long_test$RELATIVEPOSITION) <- c("Inside",
-                                     "Outside")
-long_test$USERID <- as.factor(long_test$USERID)
-long_test$PHONEID <- as.factor(long_test$PHONEID)
-long_test$WAPid <- as.factor(long_test$WAPid)
-long_test$TIMESTAMP <- as.POSIXct(long_test$TIMESTAMP, origin="1970-01-01")
-
-
-
-
-wide_test$FLOOR <- as.factor(wide_test$FLOOR)
-wide_test$BUILDINGID <- as.factor(wide_test$BUILDINGID)
-levels(wide_test$BUILDINGID) <- c("TI",
-                                  "TD",
-                                  "TC")
-wide_test$SPACEID <- as.factor(wide_test$SPACEID)
-wide_test$RELATIVEPOSITION <- as.factor(wide_test$RELATIVEPOSITION)
-levels(wide_test$RELATIVEPOSITION) <- c("Inside",
-                                     "Outside")
-wide_test$USERID <- as.factor(wide_test$USERID)
-wide_test$PHONEID <- as.factor(wide_test$PHONEID)
-wide_train$TIMESTAMP <- as.POSIXct(wide_train$TIMESTAMP, origin="1970-01-01")
+wide_test <- wide_test %>% convert(num(LONGITUDE, LATITUDE),     # check -> sapply(wide_test, class)
+                                   fct(BUILDINGID, FLOOR, USERID, PHONEID,
+                                       RELATIVEPOSITION, SPACEID),
+                                   dtm(TIMESTAMP))
+levels(wide_test$BUILDINGID) <- c("TI", "TD","TC")
+levels(wide_test$RELATIVEPOSITION) <- c("Inside", "Outside")
 
 
 
@@ -151,15 +131,18 @@ ZeroVar_check_test <- nearZeroVar(wide_test[1:520], saveMetrics = TRUE) #
 wide_test <- wide_test[-which(ZeroVar_check_test$zeroVar == TRUE)]
 rm(ZeroVar_check_test)
 
-waps_wtr <- grep("WAP", names(wide_train), value = TRUE) 
-waps_wtst <- grep("WAP", names(wide_test), value = TRUE)
-common_waps <- intersect(waps_wtst, waps_wtr)
+vars_waps_tr <- grep("WAP", names(wide_train), value = TRUE) # grep the WAPs remaining after applying zeroVar
+vars_waps_tst <- grep("WAP", names(wide_test), value = TRUE)
+common_waps <- intersect(vars_waps_tst, vars_waps_tr)
 
-common_waps_tr<- select_at(wide_train[waps_wtr], common_waps)
-common_waps_tst <- select_at(wide_test[waps_wtst], common_waps)
+common_waps_tr<- select_at(wide_train[vars_waps_tr], common_waps)
+common_waps_tst <- select_at(wide_test[vars_waps_tst], common_waps)
 
 wide_train <- cbind(common_waps_tr, wide_train[466:474])
 wide_test <- cbind(common_waps_tst, wide_test[368:376])
+
+rm(common_waps_tr)
+rm(common_waps_tst)
 
 
 # real duplicates
@@ -170,12 +153,12 @@ long_train <- unique(long_train)
 
 
 # FEATURE ENGINEERING  
-# Create new attribute BUILDING-FLOOR
-long_train$BuildingFloor <- paste(long_train$BUILDINGID, long_train$FLOOR, sep = "-")
-long_test$BuildingFloor <- paste(long_test$BUILDINGID, long_test$FLOOR, sep = "-")
-
-wide_train$BuildingFloor <- paste(wide_train$BUILDINGID, wide_train$FLOOR, sep = "-")
-wide_test$BuildingFloor <- paste(wide_test$BUILDINGID, wide_test$FLOOR, sep = "-")
+  # Create new attribute BUILDING-FLOOR
+  # long_train$BuildingFloor <- paste(long_train$BUILDINGID, long_train$FLOOR, sep = "-")
+  # long_test$BuildingFloor <- paste(long_test$BUILDINGID, long_test$FLOOR, sep = "-")
+  # 
+  # wide_train$BuildingFloor <- paste(wide_train$BUILDINGID, wide_train$FLOOR, sep = "-")
+  # wide_test$BuildingFloor <- paste(wide_test$BUILDINGID, wide_test$FLOOR, sep = "-")
 
 
 
@@ -534,6 +517,9 @@ b_predictions$predictionRFwaps <- predB_RFwaps
 b_predictions$predictionRFpcs <- predB_RFpcs
 
 
+# add final predictions to sample_wide and wide_test
+sample_wide$pred_buidling <- buildingRF_pcs$predicted
+wide_test$pred_building <- predB_RFpcs
 
 ############################################# FLOOR ##################################################
 
@@ -610,14 +596,100 @@ confusionMatrix(predF_RFwaps, wide_test$FLOOR)             # kappa 87.3%
 
 # Create df with real and predicted results (by all models with best results)
 f_predictions <- as.data.frame(wide_test$BUILDINGID)
-f_predictions$predictionRFwaps <- predB_RFwaps
+f_predictions$predictionRFwaps <- predF_RFwaps
 
+
+# add final predictions to sample_wide and wide_test
+sample_wide$pred_floor <- floorRF_waps$predicted
+wide_test$pred_floor <- predF_RFwaps
 
 
 
 ########################################### LONGITUDE ##################################################
 
 ##### TRAINING MODELS FOR LONGITUDE ####
+new_tr <- select_at(wide_train, waps_wtr2)
+new_tr <- cbind(wapsbf_tr, 
+                   sample_wide$pred_buidling, 
+                   wide_train$FLOOR,
+                   wide_train$LONGITUDE,
+                   wide_train$LATITUDE)
+
+new_tst <- select_at(wide_test, waps_wtst2)
+new_tst <- cbind(wapsbf_tst, 
+                    wide_test$BUILDINGID, 
+                    wide_test$FLOOR,
+                    wide_test$LONGITUDE,
+                    wide_test$LATITUDE)
+
+
+vars_longpred <- grep("WAP|BUILDING|FLOOR", 
+                      names(new_tr), value= TRUE)
+
+sample_new <- wapsbf_tr %>% group_by(`wide_train$BUILDINGID`,
+                                        `wide_train$FLOOR`) %>% sample_n(727) # it takes x samples from each building & floor
+
+
+
+# Train a random forest using waps as independent variable to predict floor
+bestmtry_wapsbf_long <- tuneRF(sample_new[vars_longpred],      # look for the best mtry
+                      sample_new$LONGITUDE,
+                      ntreeTry=100,
+                      stepFactor=2,
+                      improve=0.05,
+                      trace=TRUE,
+                      plot=T) # Result: 34
+
+# model & confusion matrix
+# system.time(floorRF_waps <- randomForest(y= sample_wide$FLOOR,           # 0    1    2    3   4  class.error
+#                                         x= sample_wide[waps_wtr2],  # 0 2158    9    0   14   0     0.01055
+#                                         importance=T,               # 1    3 2175    2    1   0     0.00275
+#                                         method="rf",                # 2    0    3 2172    6   0     0.00413
+#                                         ntree=100,                  # 3    0    0    2 2178   1     0.00138
+#                                         mtry=34)) # best mtry       # 4    0    0    0    2 725     0.00275
+
+
+
+
+# In order to predict longitude we should include building and floor 
+  # but as they are factors and we will run a regression
+  # we convert both variables to dummies
+b_dummy <- dummify(wide_train$BUILDINGID)
+f_dummy <- dummify(wide_train$FLOOR)
+    # dummies <- predict(dummyVars(~ BUILDINGID, data = wide_train), 
+    #                    newdata = wide_test)
+
+dummy_train_lg <- wide_train
+
+dummify <- dummyVars("~BUILDINGID", 
+                              data = wide_train) 
+dummify
+regression_train <- data.frame(predict(regression_train, 
+                                     newdata = existing)) 
+
+# data.frame(predict(existing.dummified, 
+#                       newdata = existing)) # new df with dummified Product Type
+
+
+
+# Get the best mtry
+bestmtry_waps_long <- tuneRF(sample_wide[waps_buil], 
+                             sample_wide$LONGITUDE, 
+                             ntreeTry=100,
+                             stepFactor=2,
+                             improve=0.05,
+                             trace=TRUE, 
+                             plot=T) 
+
+# Train a random forest using that mtry
+system.time(longRF_waps <- randomForest(y=sample$LONGITUDE,x=sample[WAPs],importance=T,method="rf", ntree=100, mtry=22))
+
+
+
+
+
+
+
 
 
 
@@ -661,12 +733,6 @@ wide_test$lmpredictions <- applymodel1
 
 
 
-# # Preprocess to dummify building and incorporate it to floor prediction
-# train_regression <- dummyVars("~BUILDINGID", data = train_classification) 
-# <- data.frame(predict(existing.dummified, 
-#                       newdata = existing)) # new df with dummified Product Type
-
-
 
 
 # floor_predictions <- c()
@@ -675,15 +741,6 @@ wide_test$lmpredictions <- applymodel1
 # 
 
 # models_resamples <- resamples(list(RF = modelRF_class, RF = modelRF_wide))
-
-
-
-#### PREDICT LONGITUDE ####
-
-
-
-
-#### PREDICT LATITUDE ####
 
 
 # GRADIENT BOOSTING TREES
