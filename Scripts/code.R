@@ -131,8 +131,8 @@ ZeroVar_check_test <- nearZeroVar(wide_test[1:520], saveMetrics = TRUE) #
 wide_test <- wide_test[-which(ZeroVar_check_test$zeroVar == TRUE)]
 rm(ZeroVar_check_test)
 
-vars_waps_tr <- grep("WAP", names(wide_train), value = TRUE) # grep the WAPs remaining after applying zeroVar
-vars_waps_tst <- grep("WAP", names(wide_test), value = TRUE)
+vars_waps_tr <- grep("WAP", names(wide_train), value = TRUE) # grep 465 WAPs remaining after applying zeroVar
+vars_waps_tst <- grep("WAP", names(wide_test), value = TRUE) # grep 367 WAPs " "
 common_waps <- intersect(vars_waps_tst, vars_waps_tr)
 
 common_waps_tr<- select_at(wide_train[vars_waps_tr], common_waps)
@@ -141,9 +141,8 @@ common_waps_tst <- select_at(wide_test[vars_waps_tst], common_waps)
 wide_train <- cbind(common_waps_tr, wide_train[466:474])
 wide_test <- cbind(common_waps_tst, wide_test[368:376])
 
-rm(common_waps_tr)
-rm(common_waps_tst)
-
+rm(common_waps_tr, common_waps_tst)
+rm(vars_waps_tr, vars_waps_tst)
 
 # real duplicates
 wide_train <- unique(wide_train)
@@ -154,11 +153,11 @@ long_train <- unique(long_train)
 
 # FEATURE ENGINEERING  
   # Create new attribute BUILDING-FLOOR
-  # long_train$BuildingFloor <- paste(long_train$BUILDINGID, long_train$FLOOR, sep = "-")
-  # long_test$BuildingFloor <- paste(long_test$BUILDINGID, long_test$FLOOR, sep = "-")
-  # 
-  # wide_train$BuildingFloor <- paste(wide_train$BUILDINGID, wide_train$FLOOR, sep = "-")
-  # wide_test$BuildingFloor <- paste(wide_test$BUILDINGID, wide_test$FLOOR, sep = "-")
+  long_train$BuildingFloor <- paste(long_train$BUILDINGID, long_train$FLOOR, sep = "-")
+  long_test$BuildingFloor <- paste(long_test$BUILDINGID, long_test$FLOOR, sep = "-")
+
+  wide_train$BuildingFloor <- paste(wide_train$BUILDINGID, wide_train$FLOOR, sep = "-")
+  wide_test$BuildingFloor <- paste(wide_test$BUILDINGID, wide_test$FLOOR, sep = "-")
 
 
 
@@ -248,6 +247,7 @@ ggplot(data = USER6) +
   geom_histogram(bins = 30, fill = "#0c4c8a") +
   theme_minimal() # although 84% of his records are affected
 
+rm(USER6)
 
 # Can we remove this user completely though? 
 # would it leave us with too few data in building TC floor 3&4? -> ANALYSIS OF RECORDS IN TC FLOOR 3 & 4
@@ -256,15 +256,12 @@ ggplot(data = TC3_exploration) +
   aes(x = WAPrecord, fill = USERID) +
   geom_histogram(bins = 30) +
   theme_minimal()
-rm(TC3_exploration)
-
 
 TC4_exploration <- long_train %>% filter(BuildingFloor == "TC-4")
 ggplot(data = TC4_exploration) +
   aes(x = WAPrecord, fill = USERID) +
   geom_histogram(bins = 30) +
   theme_minimal()
-rm(TC4_exploration)
 
 # User 6 captured a big proportion of data in TC3 and TC4
 # what would happen in terms of data amount if we removed user 6 records?
@@ -273,15 +270,15 @@ ggplot(data = TC_exploration) +
   aes(x = FLOOR, fill = USERID, weight = WAPrecord) +
   geom_bar() +                  # although we could still predict T3 
   theme_minimal()               # TC4 would end up with really few data 
-rm(TC_exploration)
+rm(TC3_exploration, TC4_exploration, TC_exploration)
 
 
 # as user 6 represents a big part of the records of TC3&4, 
 # we only remove the data >-30dbm recorded; but we do not remove all user 6 records
 long_train <- long_train %>% filter(WAPrecord <= -30)
 
-waps_wtr2 <- grep("WAP", names(wide_train), value = TRUE) 
-wide_train <- wide_train %>% filter_at(waps_wtr2, any_vars(. < -30)) # filter rows that do not contain values above -30dbm in WAP columns
+vars_waps_tr <- grep("WAP", names(wide_train), value = TRUE) # from wide_train 322 vbs
+wide_train <- wide_train %>% filter_at(vars_waps_tr, any_vars(. < -30)) # filter rows that do not contain values above -30dbm in WAP columns
 
 
 
@@ -317,11 +314,11 @@ ggplot(data = top_signals_df) +
   aes(x = LONGITUDE, y = LATITUDE) +
   geom_point(color = "#0c4c8a") +
   theme_minimal()
+rm(top_signals_df)
 
 # and what if we consider "top & Very Good signals"?
 vg_top_signals <- filter(long_train, long_train$signalQuality =="1. Top signal" | long_train$signalQuality =="2. Very Good signal") 
-vg_top_signals_wide <- wide_train %>% filter_at(waps, any_vars(. > -69)) # filter WAPs with values >-69 to take them for modelling
-
+vg_top_signals_wide <- wide_train %>% filter_at(vars_waps_tr, any_vars(. > -69)) # filter WAPs with values >-69 to take them for modelling
 
 
   # only TOP AND VG signal waps 
@@ -367,18 +364,22 @@ ggplot(data = buildingTC) +
 # we will run a PCA to create a new data set containing components with the highest variance
 
 # Preprocess to standarize the WAPs attributes
-compress <- preProcess(wide_train[ ,waps_wtr2], 
+compress <- preProcess(wide_train[ ,vars_waps_tr], 
                        method = c("center", "scale", "pca"), 
                        thresh = 0.80) # PCA needed 77 components to capture 80 percent of the variance
 
 
-# PCA visualization
-pca_train <- prcomp(wide_train[,waps_wtr2], center= TRUE, scale.= TRUE, rank. = 77) # dim(pca_train$x) the matrix x has the principal component score vectors in a 19300 × 143 dimension
-      # pca_train$rotation[1:5,1:4] #  rotation gets the components weights (look at first 4 principal components and first 5 rows)
+  
+  # PCA visualization
+pca_train <- prcomp(wide_train[, vars_waps_tr], 
+                    center= TRUE, scale.= TRUE, rank. = 77) # dim(pca_train$x) the matrix x has 
+                                                            #the principal component score vectors in a 19300 - 143 dimension
 PCs_sd <- pca_train$sdev #compute standard deviation of each principal component
 PCs_var <- PCs_sd^2 # compute variance
-      # PCs_var[1:77] # find the PCs with max variance (we check variance  
-         # of first 77 components) to retain as much information as possible 
+# PCs_var[1:77] # find the PCs with max variance (we check variance  
+  # of first 77 components) to retain as much information as possible 
+# pca_train$rotation[1:5,1:4] # gets PC weights (look at first 4 principal components and first 5 rows)
+
 
 var_explained <- PCs_var/sum(PCs_var) # proportion of variance explained by each component
 plot(var_explained, xlab = "Principal Component", # var_explained Results:  1st component explains 6.8% variance. 
