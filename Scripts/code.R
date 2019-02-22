@@ -51,8 +51,8 @@ names(long_test)[10]<- paste("WAPid")
 names(long_test)[11]<- paste("WAPrecord")
 
 
-rm(original_train)
-rm(original_test)
+rm(original_train, original_test)
+
 
 
 # MISSING VALUES
@@ -125,11 +125,12 @@ levels(wide_test$RELATIVEPOSITION) <- c("Inside", "Outside")
 
 ZeroVar_check_train <- nearZeroVar(wide_train[1:520], saveMetrics = TRUE) # there are 55 WAPs with 0 variance
 wide_train <- wide_train[-which(ZeroVar_check_train$zeroVar == TRUE)] # we remove them as they might ditort our model
-rm(ZeroVar_check_train)
+
 
 ZeroVar_check_test <- nearZeroVar(wide_test[1:520], saveMetrics = TRUE) #
 wide_test <- wide_test[-which(ZeroVar_check_test$zeroVar == TRUE)]
-rm(ZeroVar_check_test)
+
+
 
 vars_waps_tr <- grep("WAP", names(wide_train), value = TRUE) # grep 465 WAPs remaining after applying zeroVar
 vars_waps_tst <- grep("WAP", names(wide_test), value = TRUE) # grep 367 WAPs " "
@@ -141,18 +142,16 @@ common_waps_tst <- select_at(wide_test[vars_waps_tst], common_waps)
 wide_train <- cbind(common_waps_tr, wide_train[466:474])
 wide_test <- cbind(common_waps_tst, wide_test[368:376])
 
-rm(common_waps_tr, common_waps_tst)
-rm(vars_waps_tr)
+rm(common_waps_tr, common_waps_tst, vars_waps_tr, ZeroVar_check_train, ZeroVar_check_test)
+
 
 # real duplicates
 wide_train <- unique(wide_train)
 long_train <- unique(long_train)
 
 
-
-
 # FEATURE ENGINEERING  
-  # Create new attribute BUILDING-FLOOR
+  # Create new attribute BUILDING-FLOOR 
   long_train$BuildingFloor <- paste(long_train$BUILDINGID, long_train$FLOOR, sep = "-")
   long_test$BuildingFloor <- paste(long_test$BUILDINGID, long_test$FLOOR, sep = "-")
 
@@ -401,6 +400,7 @@ vars_not_waps_tr <- wide_train[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
 training_PCA <- cbind(training_PCA, vars_not_waps_tr)
 
 # Preparing the TESTING set for PCA
+vars_waps_tst <- grep("WAP", names(wide_test), value = TRUE)
 testing_PCA <- predict(compress, wide_test[,vars_waps_tst])
 vars_not_waps_tst <- wide_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
                            "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
@@ -607,104 +607,72 @@ wide_test$pred_floor <- predF_RFwaps
 ########################################### LONGITUDE ##################################################
 
 ##### TRAINING MODELS FOR LONGITUDE ####
-new_tr <- select_at(wide_train, waps_wtr2)
-new_tr <- cbind(wapsbf_tr, 
-                   sample_train$pred_buidling, 
-                   wide_train$FLOOR,
-                   wide_train$LONGITUDE,
-                   wide_train$LATITUDE)
 
-new_tst <- select_at(wide_test, waps_wtst2)
-new_tst <- cbind(wapsbf_tst, 
-                    wide_test$BUILDINGID, 
-                    wide_test$FLOOR,
-                    wide_test$LONGITUDE,
-                    wide_test$LATITUDE)
+vars_x_longitude <- grep("WAP|pred_b", 
+                      names(sample_train), value= TRUE)
 
 
-vars_longpred <- grep("WAP|BUILDING|FLOOR", 
-                      names(new_tr), value= TRUE)
-
-sample_new <- wapsbf_tr %>% group_by(`wide_train$BUILDINGID`,
-                                        `wide_train$FLOOR`) %>% sample_n(727) # it takes x samples from each building & floor
-
-
-
-# Train a random forest using waps as independent variable to predict floor
-bestmtry_wapsbf_long <- tuneRF(sample_new[vars_longpred],      # look for the best mtry
-                      sample_new$LONGITUDE,
-                      ntreeTry=100,
-                      stepFactor=2,
-                      improve=0.05,
-                      trace=TRUE,
-                      plot=T) # Result: 34
+# Train a random forest using waps as independent variable to predict longitude
+  bestmtry_RFlong <- tuneRF(sample_train[vars_x_longitude],      # look for the best mtry
+                        sample_train$LONGITUDE,
+                        ntreeTry=100,
+                        stepFactor=2,
+                        improve=0.05,
+                        trace=TRUE,
+                        plot=T) # Result: 104
 
 # model & confusion matrix
-# system.time(floorRF_waps <- randomForest(y= sample_train$FLOOR,           # 0    1    2    3   4  class.error
-#                                         x= sample_train[waps_wtr2],  # 0 2158    9    0   14   0     0.01055
-#                                         importance=T,               # 1    3 2175    2    1   0     0.00275
-#                                         method="rf",                # 2    0    3 2172    6   0     0.00413
-#                                         ntree=100,                  # 3    0    0    2 2178   1     0.00138
-#                                         mtry=34)) # best mtry       # 4    0    0    0    2 725     0.00275
+# system.time(longRF_waps <- randomForest(y= sample_train$LONGITUDE,               # 
+#                                         x= sample_train[vars_x_longitude],  # 
+#                                         importance=T,                       # 
+#                                         method="rf",                        # 
+#                                         ntree=100,                          # 
+#                                         mtry=104)) # best mtry              # 
+
+# saveRDS(longRF_waps, "./Models/longRF_waps.rds")
+longRF_waps <- readRDS("./Models/longRF_waps.rds")
+postResample(longRF_waps$predicted, sample_train$LONGITUDE) #    RMSE Rsquared      MAE 
+                                                            #   5.219    0.998    2.839 
 
 
-
-
-# In order to predict longitude we should include building and floor 
-  # but as they are factors and we will run a regression
-  # we convert both variables to dummies
-b_dummy <- dummify(wide_train$BUILDINGID)
-f_dummy <- dummify(wide_train$FLOOR)
-    # dummies <- predict(dummyVars(~ BUILDINGID, data = wide_train), 
-    #                    newdata = wide_test)
-
-dummy_train_lg <- wide_train
-
-dummify <- dummyVars("~BUILDINGID", 
-                              data = wide_train) 
-dummify
-regression_train <- data.frame(predict(regression_train, 
-                                     newdata = existing)) 
-
-# data.frame(predict(existing.dummified, 
-#                       newdata = existing)) # new df with dummified Product Type
-
-
-
-# Get the best mtry
-bestmtry_waps_long <- tuneRF(sample_train[waps_buil], 
-                             sample_train$LONGITUDE, 
-                             ntreeTry=100,
-                             stepFactor=2,
-                             improve=0.05,
-                             trace=TRUE, 
-                             plot=T) 
-
-# Train a random forest using that mtry
-system.time(longRF_waps <- randomForest(y=sample$LONGITUDE,x=sample[WAPs],importance=T,method="rf", ntree=100, mtry=22))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+predLG_RFwaps <- predict(longRF_waps, newdata = wide_test)#  RMSE Rsquared      MAE 
+postResample(predLG_RFwaps, wide_test$LONGITUDE)          # 8.835    0.995    6.058 
+   
 
 
 ########################################## LATITUDE ##################################################
 
 ##### TRAINING MODELS FOR LATITUDE ####
 
+vars_x_latittude <- grep("WAP|pred_b|pred_LG", 
+                         names(sample_train), value= TRUE)
+
+
+# Train a random forest using waps as independent variable to predict latitude
+bestmtry_RFlat <- tuneRF(sample_train[vars_x_latitude],      # look for the best mtry
+                          sample_train$LATITUDE,
+                          ntreeTry=100,
+                          stepFactor=2,
+                          improve=0.05,
+                          trace=TRUE,
+                          plot=T) # Result: 104
+
+# model & confusion matrix
+# system.time(latRF_waps <- randomForest(y= sample_train$latitude,               # 
+#                                         x= sample_train[vars_x_latitude],  # 
+#                                         importance=T,                       # 
+#                                         method="rf",                        # 
+#                                         ntree=100,                          # 
+#                                         mtry=104)) # best mtry              # 
+
+# saveRDS(longRF_waps, "./Models/longRF_waps.rds")
+latRF_waps <- readRDS("./Models/latRF_waps.rds")
+postResample(latRF_waps$predicted, sample_train$latitude) #    RMSE Rsquared      MAE 
+#   5.219    0.998    2.839 
+
+
+predLAT_RFwaps <- predict(latRF_waps, newdata = wide_test)#  RMSE Rsquared      MAE 
+postResample(predLAT_RFwaps, wide_test$latitude)          # 
 
 
 
@@ -713,9 +681,27 @@ system.time(longRF_waps <- randomForest(y=sample$LONGITUDE,x=sample[WAPs],import
 
 
 
+# In order to predict longitude we should include building and floor 
+  # but as they are factors and we will run a regression
+#   # we convert both variables to dummies
+# b_dummy <- dummify(wide_train$BUILDINGID)
+# f_dummy <- dummify(wide_train$FLOOR)
+#     # dummies <- predict(dummyVars(~ BUILDINGID, data = wide_train), 
+#     #                    newdata = wide_test)
+# 
+# dummy_train_lg <- wide_train
+# 
+# dummify <- dummyVars("~BUILDINGID", 
+#                               data = wide_train) 
+# dummify
+# regression_train <- data.frame(predict(regression_train, 
+#                                      newdata = existing)) 
+
+# data.frame(predict(existing.dummified, 
+#                       newdata = existing)) # new df with dummified Product Type
 
 
-wide_test$lmpredictions <- applymodel1
+
 # wide_test$absolute.errorlm <- abs(testing$Volume - 
 #                                   testing$lmpredictions)
 # testing$relative.errorlm <- testing$absolute.errorlm/testing$Volume
@@ -742,16 +728,16 @@ wide_test$lmpredictions <- applymodel1
 # models_resamples <- resamples(list(RF = modelRF_class, RF = modelRF_wide))
 
 
-# GRADIENT BOOSTING TREES
-set.seed(123)
-modelGBT <- caret::train(BUILDINGID~ .,
-                         data = sample_train, 
-                         trControl= fitControl, 
-                         method = "gbm")
-
-modelGBT$results # shrinkage 0.1; interaction depth 3; ntrees 150;  R^2 0.9972912; MAE;0.01499280 
-postResample
-
+# # GRADIENT BOOSTING TREES
+# set.seed(123)
+# modelGBT <- caret::train(BUILDINGID~ .,
+#                          data = sample_train, 
+#                          trControl= fitControl, 
+#                          method = "gbm")
+# 
+# modelGBT$results # shrinkage 0.1; interaction depth 3; ntrees 150;  R^2 0.9972912; MAE;0.01499280 
+# postResample
+# 
 
 
 
@@ -771,11 +757,11 @@ postResample
 
 
 #LINEAR MODEL ()
-set.seed(123)
-model1_lm <- lm(BUILDINGID ~ .,
-           data = sample_train)
-model1_lm
-
+# set.seed(123)
+# model1_lm <- lm(BUILDINGID ~ .,
+#            data = sample_train)
+# model1_lm
+# 
 
 # DISTANCE BASED MODELS
 
@@ -783,18 +769,6 @@ sapply(wide_train[, waps],var) # check variance
 range(sapply(wide_train[, waps],var)) # variance seems strong in this context
 widetrain_standardized <- as.data.frame(scale(wide_train[, waps]))
 sapply(widetrain_standardized, sd) # effect of standarization sd = 1
-
-
-################################### PREDICT LONGITUDE ############################
-
-# DECISION BASED
-# RANDOM FOREST
-
-# DISTANCE BASED
-
-
-
-
 
 
 ################################# OTHER STUFF ############################
