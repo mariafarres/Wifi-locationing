@@ -142,7 +142,7 @@ wide_train <- cbind(common_waps_tr, wide_train[466:474])
 wide_test <- cbind(common_waps_tst, wide_test[368:376])
 
 rm(common_waps_tr, common_waps_tst)
-rm(vars_waps_tr, vars_waps_tst)
+rm(vars_waps_tr)
 
 # real duplicates
 wide_train <- unique(wide_train)
@@ -328,7 +328,7 @@ ggplot(data = vg_top_signals) +
   theme_minimal()       # although precision would increase, there are tiny areas 
                         # (specially in building TD) that stay uncovered
 
-
+rm(vg_top_signals)
 
 # let's analyse this including FLOOR attribute to see the distribution of signals by quality 
 # in each building and floor
@@ -395,25 +395,28 @@ plot(cumsum(var_explained), xlab = "Principal Component", # shows that taking 77
 
 
 # Preparing the TRAINING set for PCA
-training_PCA <- predict(compress, wide_train[,waps_wtr2])
-not_waps <- wide_train[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
+training_PCA <- predict(compress, wide_train[,vars_waps_tr])
+vars_not_waps_tr <- wide_train[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
                            "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
-training_PCA <- cbind(training_PCA, not_waps)
-
+training_PCA <- cbind(training_PCA, vars_not_waps_tr)
 
 # Preparing the TESTING set for PCA
-testing_PCA <- predict(compress, wide_test[,waps_wtst2])
-not_waps_tst <- wide_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
+testing_PCA <- predict(compress, wide_test[,vars_waps_tst])
+vars_not_waps_tst <- wide_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
                            "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
-testing_PCA <- cbind(testing_PCA, not_waps_tst)
-
+testing_PCA <- cbind(testing_PCA, vars_not_waps_tst)
+rm(vars_not_waps_tr, vars_not_waps_tst, 
+   compress, PCs_sd, PCs_var, var_explained)
 
 
 
 #################################### SAMPLING & CROSS-VALIDATION #####################################
+
 # Smart sampling
 
-sample_wide <- wide_train %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes x samples from each building & floor
+# training dfs available: wide_train / training_PCA
+
+sample_train <- wide_train %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes x samples from each building & floor
 
 sample_PCA <- training_PCA %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes x samples from each building & floor
 
@@ -429,11 +432,6 @@ fitControl <- trainControl(
   repeats = 3)
 
 
-# PREPARE TRAIN 
-
-
-
-
 
 ########################################### MODELLING ###########################################
 
@@ -446,19 +444,19 @@ options(digits = 3)
 # RANDOM FOREST (DECISION BASED MODEL)
 set.seed(123)
 # Train a random forest using waps as independent variable 
-  # best mtry search for sample_wide 
+  # best mtry search for sample_train 
     #(wide format df without zerovar & different waps & duplicates & >-30dbm)
 
-    # bestmtry_waps_build <- tuneRF(sample_wide[waps_wtr2],      # look for the best mtry
-    #                       sample_wide$BUILDINGID,
+    # bestmtry_waps_build <- tuneRF(sample_train[vars_waps_tr],      # look for the best mtry
+    #                       sample_train$BUILDINGID,
     #                       ntreeTry=100,
     #                       stepFactor=2,
     #                       improve=0.05,
     #                       trace=TRUE,
     #                       plot=T) # Result: 5
 
-      # system.time(buildingRF_waps <-randomForest(y=sample_wide$BUILDINGID,    #      TI   TD   TC class.error
-      #                                  x=sample_wide[waps_wtr2],              # TI 2907    1    0    0.000344
+      # system.time(buildingRF_waps <-randomForest(y=sample_train$BUILDINGID,    #      TI   TD   TC class.error
+      #                                  x=sample_train[vars_waps_tr],              # TI 2907    1    0    0.000344
       #                                   importance=T,                         # TD    1 2904    3    0.001376
       #                                   method="rf",                          # TC    0   16 3619    0.004402
       #                                   ntree=100,
@@ -466,8 +464,8 @@ set.seed(123)
 
       
 # saveRDS(buildingRF_waps, "./Models/buildingRF_waps.rds")
-# buildingRF_waps <- readRDS("./Models/buildingRF_waps.rds")
-# confusionMatrix(buildingRF_waps$predicted, sample_wide$BUILDINGID) # accuracy = 99.8%
+buildingRF_waps <- readRDS("./Models/buildingRF_waps.rds")
+confusionMatrix(buildingRF_waps$predicted, sample_train$BUILDINGID) # accuracy = 99.8%
                                                                    # kappa = 99.7%
 
 
@@ -518,8 +516,8 @@ b_predictions$predictionRFwaps <- predB_RFwaps
 b_predictions$predictionRFpcs <- predB_RFpcs
 
 
-# add final predictions to sample_wide and wide_test
-sample_wide$pred_buidling <- buildingRF_pcs$predicted
+# add final predictions to sample_train and wide_test
+sample_train$pred_buidling <- buildingRF_pcs$predicted
 wide_test$pred_building <- predB_RFpcs
 
 ############################################# FLOOR ##################################################
@@ -530,8 +528,8 @@ wide_test$pred_building <- predB_RFpcs
 set.seed(123)
 
 # Train a random forest using waps as independent variable to predict floor
-  # bestmtry_waps_floor <- tuneRF(sample_wide[waps_wtr2],      # look for the best mtry
-  #                       sample_wide$FLOOR,
+  # bestmtry_waps_floor <- tuneRF(sample_train[vars_waps_tr],      # look for the best mtry
+  #                       sample_train$FLOOR,
   #                       ntreeTry=100,
   #                       stepFactor=2,
   #                       improve=0.05,
@@ -539,8 +537,8 @@ set.seed(123)
   #                       plot=T) # Result: 34
 
     # model & confusion matrix
-    # system.time(floorRF_waps <- randomForest(y= sample_wide$FLOOR,           # 0    1    2    3   4  class.error
-    #                                         x= sample_wide[waps_wtr2],  # 0 2158    9    0   14   0     0.01055
+    # system.time(floorRF_waps <- randomForest(y= sample_train$FLOOR,           # 0    1    2    3   4  class.error
+    #                                         x= sample_train[vars_waps_tr],  # 0 2158    9    0   14   0     0.01055
     #                                         importance=T,               # 1    3 2175    2    1   0     0.00275
     #                                         method="rf",                # 2    0    3 2172    6   0     0.00413
     #                                         ntree=100,                  # 3    0    0    2 2178   1     0.00138
@@ -549,7 +547,7 @@ set.seed(123)
 
 # saveRDS(floorRF_waps, "./Models/floorRF_waps.rds")
 floorRF_waps <- readRDS("./Models/floorRF_waps.rds")  # better results! 
-confusionMatrix(floorRF_waps$predicted, sample_wide$FLOOR)  # Accuracy 99.5%
+confusionMatrix(floorRF_waps$predicted, sample_train$FLOOR)  # Accuracy 99.5%
                                                             # kappa 99.4%
 
 
@@ -600,8 +598,8 @@ f_predictions <- as.data.frame(wide_test$BUILDINGID)
 f_predictions$predictionRFwaps <- predF_RFwaps
 
 
-# add final predictions to sample_wide and wide_test
-sample_wide$pred_floor <- floorRF_waps$predicted
+# add final predictions to sample_train and wide_test
+sample_train$pred_floor <- floorRF_waps$predicted
 wide_test$pred_floor <- predF_RFwaps
 
 
@@ -611,7 +609,7 @@ wide_test$pred_floor <- predF_RFwaps
 ##### TRAINING MODELS FOR LONGITUDE ####
 new_tr <- select_at(wide_train, waps_wtr2)
 new_tr <- cbind(wapsbf_tr, 
-                   sample_wide$pred_buidling, 
+                   sample_train$pred_buidling, 
                    wide_train$FLOOR,
                    wide_train$LONGITUDE,
                    wide_train$LATITUDE)
@@ -642,8 +640,8 @@ bestmtry_wapsbf_long <- tuneRF(sample_new[vars_longpred],      # look for the be
                       plot=T) # Result: 34
 
 # model & confusion matrix
-# system.time(floorRF_waps <- randomForest(y= sample_wide$FLOOR,           # 0    1    2    3   4  class.error
-#                                         x= sample_wide[waps_wtr2],  # 0 2158    9    0   14   0     0.01055
+# system.time(floorRF_waps <- randomForest(y= sample_train$FLOOR,           # 0    1    2    3   4  class.error
+#                                         x= sample_train[waps_wtr2],  # 0 2158    9    0   14   0     0.01055
 #                                         importance=T,               # 1    3 2175    2    1   0     0.00275
 #                                         method="rf",                # 2    0    3 2172    6   0     0.00413
 #                                         ntree=100,                  # 3    0    0    2 2178   1     0.00138
@@ -674,8 +672,8 @@ regression_train <- data.frame(predict(regression_train,
 
 
 # Get the best mtry
-bestmtry_waps_long <- tuneRF(sample_wide[waps_buil], 
-                             sample_wide$LONGITUDE, 
+bestmtry_waps_long <- tuneRF(sample_train[waps_buil], 
+                             sample_train$LONGITUDE, 
                              ntreeTry=100,
                              stepFactor=2,
                              improve=0.05,
@@ -747,7 +745,7 @@ wide_test$lmpredictions <- applymodel1
 # GRADIENT BOOSTING TREES
 set.seed(123)
 modelGBT <- caret::train(BUILDINGID~ .,
-                         data = sample_wide, 
+                         data = sample_train, 
                          trControl= fitControl, 
                          method = "gbm")
 
@@ -775,7 +773,7 @@ postResample
 #LINEAR MODEL ()
 set.seed(123)
 model1_lm <- lm(BUILDINGID ~ .,
-           data = sample_wide)
+           data = sample_train)
 model1_lm
 
 
