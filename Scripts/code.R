@@ -469,7 +469,7 @@ confusionMatrix(buildingRF_waps$predicted, sample_train$BUILDINGID) # accuracy =
                                                                    # kappa = 99.7%
 
 
-
+##### PCA SAMPLE RF
 # Train a random forest using pcs instead of waps (sample_PCA)
 pcs <- grep("PC", names(sample_PCA), value = TRUE) 
 set.seed(123)
@@ -520,6 +520,8 @@ b_predictions$predictionRFpcs <- predB_RFpcs
 sample_train$pred_buidling <- buildingRF_pcs$predicted
 wide_test$pred_building <- predB_RFpcs
 
+
+
 ############################################# FLOOR ##################################################
 
 ##### TRAINING MODELS FOR FLOOR ####
@@ -552,7 +554,7 @@ confusionMatrix(floorRF_waps$predicted, sample_train$FLOOR)  # Accuracy 99.5%
 
 
 
-
+##### PCA SAMPLE RF
 # Train a random forest using pcs instead of waps (sample_PCA)
 set.seed(123)
   # best mtry search for sample_PCA (wide format df without duplicates & >-30dbm & PCA applied)
@@ -610,72 +612,117 @@ wide_test$pred_floor <- predF_RFwaps
 
 vars_x_longitude <- grep("WAP|pred_b", 
                       names(sample_train), value= TRUE)
-
+set.seed(123)
 
 # Train a random forest using waps as independent variable to predict longitude
-  bestmtry_RFlong <- tuneRF(sample_train[vars_x_longitude],      # look for the best mtry
-                        sample_train$LONGITUDE,
-                        ntreeTry=100,
-                        stepFactor=2,
-                        improve=0.05,
-                        trace=TRUE,
-                        plot=T) # Result: 104
+  # bestmtry_RFlong <- tuneRF(sample_train[vars_x_longitude],      # look for the best mtry
+  #                       sample_train$LONGITUDE,
+  #                       ntreeTry=100,
+  #                       stepFactor=2,
+  #                       improve=0.05,
+  #                       trace=TRUE,
+  #                       plot=T) # Result: 52
 
-# model & confusion matrix
-# system.time(longRF_waps <- randomForest(y= sample_train$LONGITUDE,               # 
-#                                         x= sample_train[vars_x_longitude],  # 
-#                                         importance=T,                       # 
-#                                         method="rf",                        # 
-#                                         ntree=100,                          # 
-#                                         mtry=104)) # best mtry              # 
+    # model & confusion matrix
+    # system.time(longRF_waps <- randomForest(y= sample_train$LONGITUDE,         
+    #                                         x= sample_train[vars_x_longitude], 
+    #                                         importance=T,                      
+    #                                         method="rf",                       
+    #                                         ntree=100,                         
+    #                                         mtry=52)) # best mtry              
 
 # saveRDS(longRF_waps, "./Models/longRF_waps.rds")
 longRF_waps <- readRDS("./Models/longRF_waps.rds")
-postResample(longRF_waps$predicted, sample_train$LONGITUDE) #    RMSE Rsquared      MAE 
-                                                            #   5.219    0.998    2.839 
+postResample(longRF_waps$predicted, sample_train$LONGITUDE) #    RMSE      Rsquared      MAE 
+                                                            #   5.219         0.998    2.839  
 
 
-predLG_RFwaps <- predict(longRF_waps, newdata = wide_test)#  RMSE Rsquared      MAE 
-postResample(predLG_RFwaps, wide_test$LONGITUDE)          # 8.835    0.995    6.058 
-   
+
+##### PCA SAMPLE RF
+# Train an RF using pcs as independent variable to predict longitude
+pcs_x_longitude <- grep("PC|pred_b", # we include building to help us predict more accurately 
+                         names(sample_PCA), value= TRUE)
+
+  # bestmtry_RFlong <- tuneRF(sample_PCA[pcs_x_longitude],      # look for the best mtry
+  #                       sample_PCA$LONGITUDE,
+  #                       ntreeTry=100,
+  #                       stepFactor=2,
+  #                       improve=0.05,
+  #                       trace=TRUE,
+  #                       plot=T) # Result: 25
+
+    # model & confusion matrix
+      # system.time(longRF_pcs <- randomForest(y= sample_PCA$LONGITUDE,               
+      #                                         x= sample_PCA[pcs_x_longitude],  
+      #                                         importance=T,                    
+      #                                         method="rf",                     
+      #                                         ntree=100,                       
+      #                                         mtry= 25)) # best mtry           
+
+# saveRDS(longRF_pcs, "./Models/longRF_pcs.rds")
+longRF_pcs <- readRDS("./Models/longRF_pcs.rds")
+postResample(longRF_pcs$predicted, sample_PCA$LONGITUDE) #    RMSE      Rsquared      MAE 
+                                                        #    9.121       0.995        4.223 
+
+
+# TESTING MODELS FOR LONGITUDE
+predLG_RFwaps <- predict(longRF_waps, newdata = wide_test)#       RMSE    Rsquared      MAE   
+postResample(predLG_RFwaps, wide_test$LONGITUDE) #better results  8.835    0.995    6.058 
+
+predLG_RFpcs <- predict(longRF_pcs, newdata = testing_PCA)#       RMSE    Rsquared      MAE 
+postResample(predLG_RFpcs, wide_test$LONGITUDE)          #        9.895    0.994     6.783 
+
+
+# Create df with real and predicted results (by all models with best results)
+LG_predictions <- as.data.frame(wide_test$LONGITUDE)
+LG_predictions$predictionRFwaps <- predLG_RFwaps
+
+
+# add final predictions to sample_train and wide_test
+sample_train$pred_long <- longRF_waps$predicted
+wide_test$pred_long <- predLG_RFwaps
+
+  # pca prediction not addes as it shows worse results
 
 
 ########################################## LATITUDE ##################################################
 
 ##### TRAINING MODELS FOR LATITUDE ####
-
-vars_x_latittude <- grep("WAP|pred_b|pred_LG", 
+vars_x_latitude <- grep("WAP|pred_b|pred_long", 
                          names(sample_train), value= TRUE)
 
 
 # Train a random forest using waps as independent variable to predict latitude
-bestmtry_RFlat <- tuneRF(sample_train[vars_x_latitude],      # look for the best mtry
-                          sample_train$LATITUDE,
-                          ntreeTry=100,
-                          stepFactor=2,
-                          improve=0.05,
-                          trace=TRUE,
-                          plot=T) # Result: 104
+# bestmtry_RFlat <- tuneRF(sample_train[vars_x_latitude],      # look for the best mtry
+#                           sample_train$LATITUDE,
+#                           ntreeTry=100,
+#                           stepFactor=2,
+#                           improve=0.05,
+#                           trace=TRUE,
+#                           plot=T) # Result: 104 or 52
 
 # model & confusion matrix
-# system.time(latRF_waps <- randomForest(y= sample_train$latitude,               # 
-#                                         x= sample_train[vars_x_latitude],  # 
-#                                         importance=T,                       # 
-#                                         method="rf",                        # 
-#                                         ntree=100,                          # 
-#                                         mtry=104)) # best mtry              # 
-
-# saveRDS(longRF_waps, "./Models/longRF_waps.rds")
+system.time(latRF_waps <- randomForest(y= sample_train$LATITUDE,          
+                                        x= sample_train[vars_x_latitude], 
+                                        importance=T,                     
+                                        method="rf",                      
+                                        ntree=100,                        
+                                        mtry=52)) # best mtry             
+latRF_waps
+saveRDS(longRF_waps, "./Models/latRF_waps.rds")
 latRF_waps <- readRDS("./Models/latRF_waps.rds")
-postResample(latRF_waps$predicted, sample_train$latitude) #    RMSE Rsquared      MAE 
-#   5.219    0.998    2.839 
+postResample(latRF_waps$predicted, sample_train$LATITUDE) #    RMSE Rsquared      MAE 
+                                                          # 
 
 
+
+
+
+
+
+#### TESTING MODELS FOR LATITUDE
 predLAT_RFwaps <- predict(latRF_waps, newdata = wide_test)#  RMSE Rsquared      MAE 
-postResample(predLAT_RFwaps, wide_test$latitude)          # 
-
-
-
+postResample(predLAT_RFwaps, wide_test$LATITUDE)          # 
 
 
 
