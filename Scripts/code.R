@@ -124,7 +124,7 @@ levels(wide_test$RELATIVEPOSITION) <- c("Inside", "Outside")
 # check if there are WAPs that have no variance in all their records 
 
 ZeroVar_check_train <- nearZeroVar(wide_train[1:520], saveMetrics = TRUE) # there are 55 WAPs with 0 variance
-wide_train <- wide_train[-which(ZeroVar_check_train$zeroVar == TRUE)] # we remove them as they might ditort our model
+wide_train <- wide_train[-which(ZeroVar_check_train$zeroVar == TRUE)] # we remove them as they might distort our model
 
 
 ZeroVar_check_test <- nearZeroVar(wide_test[1:520], saveMetrics = TRUE) #
@@ -415,9 +415,10 @@ rm(vars_not_waps_tr, vars_not_waps_tst,
 # Smart sampling
 
 # training dfs available: wide_train / training_PCA
-
+set.seed(123)
 sample_train <- wide_train %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes x samples from each building & floor
 
+set.seed(123)
 sample_PCA <- training_PCA %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes x samples from each building & floor
 
 
@@ -498,7 +499,7 @@ confusionMatrix(buildingRF_pcs$predicted, sample_PCA$BUILDINGID) # accuracy = 99
 
 #### PREDICTING BUILDING IN TEST & RUN ERROR ANALYSIS ####
 predB_RFwaps <- predict(buildingRF_waps, newdata = wide_test)
-confusionMatrix(predB_RFwaps, wide_test$BUILDINGID)  # Accuracy in test 99,8%
+confusionMatrix(predB_RFwaps, wide_test$BUILDINGID)  # Accuracy in test 99,8% | kappa 99.7%
 
 predB_RFpcs <- predict(buildingRF_pcs, newdata = testing_PCA)
 confusionMatrix(predB_RFpcs, wide_test$BUILDINGID)  # Accuracy in test 100%
@@ -613,7 +614,6 @@ wide_test$pred_floor <- predF_RFwaps
 vars_x_longitude <- grep("WAP|pred_b", 
                       names(sample_train), value= TRUE)
 set.seed(123)
-
 # Train a random forest using waps as independent variable to predict longitude
   # bestmtry_RFlong <- tuneRF(sample_train[vars_x_longitude],      # look for the best mtry
   #                       sample_train$LONGITUDE,
@@ -634,7 +634,7 @@ set.seed(123)
 # saveRDS(longRF_waps, "./Models/longRF_waps.rds")
 longRF_waps <- readRDS("./Models/longRF_waps.rds")
 postResample(longRF_waps$predicted, sample_train$LONGITUDE) #    RMSE      Rsquared      MAE 
-                                                            #   5.219         0.998    2.839  
+                                                            #   49.342       0.846   37.638   
 
 
 
@@ -643,6 +643,7 @@ postResample(longRF_waps$predicted, sample_train$LONGITUDE) #    RMSE      Rsqua
 pcs_x_longitude <- grep("PC|pred_b", # we include building to help us predict more accurately 
                          names(sample_PCA), value= TRUE)
 
+set.seed(123)
   # bestmtry_RFlong <- tuneRF(sample_PCA[pcs_x_longitude],      # look for the best mtry
   #                       sample_PCA$LONGITUDE,
   #                       ntreeTry=100,
@@ -660,9 +661,10 @@ pcs_x_longitude <- grep("PC|pred_b", # we include building to help us predict mo
       #                                         mtry= 25)) # best mtry           
 
 # saveRDS(longRF_pcs, "./Models/longRF_pcs.rds")
+
 longRF_pcs <- readRDS("./Models/longRF_pcs.rds")
 postResample(longRF_pcs$predicted, sample_PCA$LONGITUDE) #    RMSE      Rsquared      MAE 
-                                                        #    9.121       0.995        4.223 
+                                                        #    48.49     0.85         37.01
 
 
 # TESTING MODELS FOR LONGITUDE
@@ -682,48 +684,71 @@ LG_predictions$predictionRFwaps <- predLG_RFwaps
 sample_train$pred_long <- longRF_waps$predicted
 wide_test$pred_long <- predLG_RFwaps
 
-  # pca prediction not addes as it shows worse results
-
+  # pca prediction not added as it shows worse results
+rm(predLG_RFpcs)
 
 ########################################## LATITUDE ##################################################
 
 ##### TRAINING MODELS FOR LATITUDE ####
 vars_x_latitude <- grep("WAP|pred_b|pred_long", 
-                         names(sample_train), value= TRUE)
+                        names(sample_train),
+                        value= TRUE)
 
-
+set.seed(123)
 # Train a random forest using waps as independent variable to predict latitude
-# bestmtry_RFlat <- tuneRF(sample_train[vars_x_latitude],      # look for the best mtry
-#                           sample_train$LATITUDE,
-#                           ntreeTry=100,
-#                           stepFactor=2,
-#                           improve=0.05,
-#                           trace=TRUE,
-#                           plot=T) # Result: 104 or 52
+  # bestmtry_RFlat <- tuneRF(sample_train[vars_x_latitude],      # look for the best mtry
+  #                           sample_train$LATITUDE,
+  #                           ntreeTry=100,
+  #                           stepFactor=2,
+  #                           improve=0.05,
+  #                           trace=TRUE,
+  #                           plot=T) # Result: 105
 
-# model & confusion matrix
-system.time(latRF_waps <- randomForest(y= sample_train$LATITUDE,          
-                                        x= sample_train[vars_x_latitude], 
-                                        importance=T,                     
-                                        method="rf",                      
-                                        ntree=100,                        
-                                        mtry=52)) # best mtry             
-latRF_waps
-saveRDS(longRF_waps, "./Models/latRF_waps.rds")
+
+   # model & confusion matrix
+      # system.time(latRF_waps <- randomForest(y= sample_train$LATITUDE,
+      #                                         x= sample_train[vars_x_latitude],
+      #                                         importance=T,
+      #                                         method="rf",
+      #                                         ntree=100,
+      #                                         mtry=105)) # best mtry
+
+
+# saveRDS(latRF_waps, "./Models/latRF_waps.rds")
 latRF_waps <- readRDS("./Models/latRF_waps.rds")
-postResample(latRF_waps$predicted, sample_train$LATITUDE) #    RMSE Rsquared      MAE 
-                                                          # 
-
-
-
+postResample(latRF_waps$predicted, sample_train$LATITUDE) #    RMSE    Rsquared    MAE 
+                                                        #      4.565    0.995    2.538  
 
 
 
 
 #### TESTING MODELS FOR LATITUDE
 predLAT_RFwaps <- predict(latRF_waps, newdata = wide_test)#  RMSE Rsquared      MAE 
-postResample(predLAT_RFwaps, wide_test$LATITUDE)          # 
+postResample(predLAT_RFwaps, wide_test$LATITUDE)          # 8.599    0.986    5.499 
 
+
+dim(latRF_waps[["predicted"]])
+
+
+# # calculate the pre-process parameters from the dataset
+# preprocessParams <- preProcess(sample[WAPs], method=c("center", "scale"))
+# 
+# # transform the waps using the parameters
+# stand_waps <- predict(preprocessParams, sample[WAPs])
+# 
+# # complete dataset
+# stand_dataset<-cbind(stand_waps, BUILDINGID=sample$BUILDINGID,LONGITUDE=sample$LONGITUDE)
+# 
+# # Train two classification knn (with knn3 and train)
+# system.time(knn_clasif <- knn3(BUILDINGID ~ as.matrix(stand_dataset[WAPs]), data = stand_dataset))
+# 
+# system.time(knn_clasif_caret<-train(y=stand_dataset$BUILDINGID, x=stand_dataset[WAPs], data = stand_dataset, method="knn"))
+# 
+# # Train two regression knn (with knnreg and caret)
+# system.time(knn_reg<-knnreg(LONGITUDE ~ as.matrix(stand_dataset[WAPs]), data = stand_dataset))
+# 
+# system.time(knn_reg_caret<-train(y=stand_dataset$LONGITUDE, x=stand_dataset[WAPs], data = stand_dataset, method="knn"))
+# 
 
 
 
@@ -810,12 +835,12 @@ postResample(predLAT_RFwaps, wide_test$LATITUDE)          #
 # model1_lm
 # 
 
-# DISTANCE BASED MODELS
-
-sapply(wide_train[, waps],var) # check variance
-range(sapply(wide_train[, waps],var)) # variance seems strong in this context
-widetrain_standardized <- as.data.frame(scale(wide_train[, waps]))
-sapply(widetrain_standardized, sd) # effect of standarization sd = 1
+# # DISTANCE BASED MODELS
+# 
+# sapply(wide_train[, waps],var) # check variance
+# range(sapply(wide_train[, waps],var)) # variance seems strong in this context
+# widetrain_standardized <- as.data.frame(scale(wide_train[, waps]))
+# sapply(widetrain_standardized, sd) # effect of standarization sd = 1
 
 
 ################################# OTHER STUFF ############################
