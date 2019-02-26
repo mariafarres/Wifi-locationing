@@ -21,10 +21,10 @@ setwd("C:/Users/usuario/Desktop/UBIQUM/Project 8 - Wifi locationing/Wifi-locatio
 #Read initial data sets
 original_train <- read_csv("./DataSets/trainingData.csv")
 original_test <- read_csv("./DataSets/validationData.csv")
+new_test <- read_csv("./DataSets/testData.csv")
 
 
-
-######################## PRE-PROCESSING ##########################################
+############################## PRE-PROCESSING ########################################
 
 # wide format df
 wide_train <- original_train # train in wide format
@@ -116,6 +116,14 @@ levels(wide_test$BUILDINGID) <- c("TI", "TD","TC")
 levels(wide_test$RELATIVEPOSITION) <- c("Inside", "Outside")
 
 
+# NEW TEST 
+
+new_test <- new_test %>% convert(num(LONGITUDE, LATITUDE),     # check -> sapply(new_test, class)
+                                   fct(BUILDINGID, FLOOR, USERID, PHONEID,
+                                       RELATIVEPOSITION, SPACEID),
+                                   dtm(TIMESTAMP))
+levels(new_test$BUILDINGID) <- c("TI", "TD","TC")
+levels(new_test$RELATIVEPOSITION) <- c("Inside", "Outside")
 
 # ZERO VARIANCE & DUPLICATES 
 
@@ -123,29 +131,37 @@ levels(wide_test$RELATIVEPOSITION) <- c("Inside", "Outside")
 
 ZeroVar_check_train <- nearZeroVar(wide_train[1:520], saveMetrics = TRUE) # there are 55 WAPs with 0 variance
 wide_train <- wide_train[-which(ZeroVar_check_train$zeroVar == TRUE)] # we remove them as they might ditort our model
-rm(ZeroVar_check_train)
+
 
 ZeroVar_check_test <- nearZeroVar(wide_test[1:520], saveMetrics = TRUE) #
 wide_test <- wide_test[-which(ZeroVar_check_test$zeroVar == TRUE)]
-rm(ZeroVar_check_test)
+
+
+ZeroVar_check_newtest <- nearZeroVar(new_test[1:520], saveMetrics = TRUE) #
+new_test <- new_test[-which(ZeroVar_check_newtest$zeroVar == TRUE)]
+
+rm(ZeroVar_check_test, ZeroVar_check_newtest, ZeroVar_check_train)
 
 vars_waps_tr <- grep("WAP", names(wide_train), value = TRUE) # grep 465 WAPs remaining after applying zeroVar
 vars_waps_tst <- grep("WAP", names(wide_test), value = TRUE) # grep 367 WAPs " "
+vars_waps_newtst <- grep("WAP", names(new_test), value = TRUE) # grep 270 WAPs " "
 common_waps <- intersect(vars_waps_tst, vars_waps_tr)
+common_waps2 <- intersect(vars_waps_newtst, vars_waps_tr)
 
 common_waps_tr<- select_at(wide_train[vars_waps_tr], common_waps)
 common_waps_tst <- select_at(wide_test[vars_waps_tst], common_waps)
+common_waps_newtst <- select_at(new_test[vars_waps_newtst], common_waps2)
 
 wide_train <- cbind(common_waps_tr, wide_train[466:474])
 wide_test <- cbind(common_waps_tst, wide_test[368:376])
+new_test <- cbind(common_waps_newtst, new_test[271:279])
 
-rm(common_waps_tr, common_waps_tst)
-rm(vars_waps_tr)
+rm(common_waps_tr, common_waps_tst, common_waps_newtst)
 
 # real duplicates
 wide_train <- unique(wide_train)
 long_train <- unique(long_train)
-
+new_test <- unique(new_test) # 5179 to 5172 obs
 
 
 
@@ -157,7 +173,7 @@ long_test$BuildingFloor <- paste(long_test$BUILDINGID, long_test$FLOOR, sep = "-
 wide_train$BuildingFloor <- paste(wide_train$BUILDINGID, wide_train$FLOOR, sep = "-")
 wide_test$BuildingFloor <- paste(wide_test$BUILDINGID, wide_test$FLOOR, sep = "-")
 
-
+new_test$BuildingFloor <- paste(new_test$BUILDINGID, new_test$FLOOR, sep = "-")
 
 ############################# EXPLORATORY / DESCRIPTIVE ANALYSIS #############################3
 
@@ -275,10 +291,14 @@ rm(TC3_exploration, TC4_exploration, TC_exploration)
 # we only remove the data >-30dbm recorded; but we do not remove all user 6 records
 long_train <- long_train %>% filter(WAPrecord <= -30)
 
-vars_waps_tr <- grep("WAP", names(wide_train), value = TRUE) # from wide_train 322 vbs
+vars_waps_tr <- grep("WAP", names(wide_train), value = TRUE) # now 312 cols
 wide_train <- wide_train %>% filter_at(vars_waps_tr, any_vars(. < -30)) # filter rows that do not contain values above -30dbm in WAP columns
 
+vars_waps_tst <- grep("WAP", names(wide_test), value = TRUE) # now 312 columns
+# wide_test does not contain any >-30 dbm value
 
+vars_waps_newtst <- grep("WAP", names(new_test), value = TRUE) # now 238 columns
+# new_test does not contain any >-30 dbm value
 
 
 # ANALYSIS OF VALUABLE SIGNALS' INTENSITY
@@ -366,6 +386,14 @@ compress <- preProcess(wide_train[ ,vars_waps_tr],
                        method = c("center", "scale", "pca"), 
                        thresh = 0.80) # PCA needed 77 components to capture 80 percent of the variance
 
+compress_tst <- preProcess(wide_test[ ,vars_waps_tst], 
+                       method = c("center", "scale", "pca"), 
+                       thresh = 0.80) # PCA needed 71 components to capture 80 percent of the variance
+
+compress_newtst <- preProcess(new_test[ ,vars_waps_newtst], 
+                           method = c("center", "scale", "pca"), 
+                           thresh = 0.80) # PCA needed 69 components to capture 80 percent of the variance
+
 
 
 # PCA visualization
@@ -398,16 +426,23 @@ vars_not_waps_tr <- wide_train[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
                                    "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
 training_PCA <- cbind(training_PCA, vars_not_waps_tr)
 
-# Preparing the TESTING set for PCA
+# Preparing the VALIDATION set for PCA
 testing_PCA <- predict(compress, wide_test[,vars_waps_tst])
 vars_not_waps_tst <- wide_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
                                    "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
 testing_PCA <- cbind(testing_PCA, vars_not_waps_tst)
+
+
+# Preparing the NEW TEST set for PCA
+new_testing_PCA <- predict(compress, wide_test[,vars_waps_newtst])
+vars_not_waps_tst <- wide_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
+                                   "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
+testing_PCA <- cbind(testing_PCA, vars_not_waps_tst)
+
+
+
 rm(vars_not_waps_tr, vars_not_waps_tst, 
-   compress, PCs_sd, PCs_var, var_explained)
-
-
-
+   PCs_sd, PCs_var, var_explained)
 #################################### SAMPLING & CROSS-VALIDATION #####################################
 
 # Smart sampling
@@ -494,7 +529,7 @@ confusionMatrix(buildingRF_pcs$predicted, sample_PCA$BUILDINGID) # accuracy = 99
 # kappa = 99.7%
 
 
-#### PREDICTING BUILDING IN TEST & RUN ERROR ANALYSIS ####
+#### PREDICTING BUILDING IN VALIDATION ####
 predB_RFwaps <- predict(buildingRF_waps, newdata = wide_test)
 confusionMatrix(predB_RFwaps, wide_test$BUILDINGID)  # Accuracy in test 99,8%
 
@@ -515,8 +550,16 @@ b_predictions$predictionRFpcs <- predB_RFpcs
 
 
 # add final predictions to sample_train and wide_test
-sample_train$pred_buidling <- buildingRF_pcs$predicted
+sample_train$pred_building <- buildingRF_pcs$predicted
+sample_PCA$pred_building <- buildingRF_pcs$predicted
 wide_test$pred_building <- predB_RFpcs
+testing_PCA$pred_building <- predB_RFpcs
+
+
+#### PREDICTING BUILDING IN NEW TEST ####
+
+
+
 
 ############################################# FLOOR ##################################################
 
@@ -571,7 +614,7 @@ set.seed(123)
 #                                  mtry=11)) # best mtry             # 4    0     0      0   8   719    0.01100
 
 # saveRDS(floorRF_pcs, "./Models/floorRF_pcs.rds")
-# floorRF_pcs <- readRDS("./Models/floorRF_pcs.rds")
+floorRF_pcs <- readRDS("./Models/floorRF_pcs.rds")
 # confusionMatrix(floorRF_pcs$predicted, sample_PCA$FLOOR)
 
 
@@ -589,7 +632,8 @@ confusionMatrix(predF_RFwaps, wide_test$FLOOR)             # kappa 87.3%
 # 4    0   0   0   3  31
 
 
-# predF_RFpcs Accuracy in test 86%; not included 
+predF_RFpcs <- predict(floorRF_pcs, newdata = testing_PCA) # Accuracy in test 90%
+confusionMatrix(predF_RFpcs, testing_PCA$FLOOR) # Accuracy in test 86%; not included in final df
 
 
 # Create df with real and predicted results (by all models with best results)
@@ -599,8 +643,9 @@ f_predictions$predictionRFwaps <- predF_RFwaps
 
 # add final predictions to sample_train and wide_test
 sample_train$pred_floor <- floorRF_waps$predicted
+sample_PCA$pred_floor <- floorRF_waps$predicted
 wide_test$pred_floor <- predF_RFwaps
-
+testing_PCA$pred_floor <- predF_RFwaps
 
 
 ########################################### LONGITUDE ##################################################
@@ -608,281 +653,153 @@ wide_test$pred_floor <- predF_RFwaps
 ##### TRAINING MODELS FOR LONGITUDE ####
 
 # Train a random forest using WAPS & BUILDING independent variable to predict floor
-vars_longpred <- grep("WAP|pred_building", 
+vars_longwaps <- grep("WAP|pred_building" , 
                       names(sample_train), value= TRUE)
 
+vars_longpcs <- grep("PC|pred_building" , 
+                     names(sample_PCA), value = TRUE) 
 
-# bestmtry_waps_long <- tuneRF(sample_train[vars_longpred],      # look for the best mtry
-#                              sample_train$LONGITUDE,
-#                                ntreeTry=100,
-#                                stepFactor=2,
-#                                improve=0.05,
-#                                trace=TRUE,
-#                                plot=T) # Result: 52
-
+set.seed(123)
 # system.time(longRF_waps <- randomForest(y= sample_train$LONGITUDE,
-#                                         x= sample_train[vars_longpred],
+#                                         x= sample_train[vars_longwaps],
 #                                         importance=T,
 #                                         method="rf",
-#                                         ntree=100,
-#                                         mtry=52))
-
+#                                         ntree=100))
+# 
 # saveRDS(longRF_waps, "./Models/longRF_waps.rds")
 longRF_waps <- readRDS("./Models/longRF_waps.rds")
 
 
+# system.time(longRF_pcs <- randomForest(y= sample_PCA$LONGITUDE,
+#                                         x= sample_PCA[vars_longpcs],
+#                                         importance=T,
+#                                         method="rf",
+#                                         ntree=100))
+# saveRDS(longRF_pcs, "./Models/longRF_pcs.rds")
+longRF_pcs <- readRDS("./Models/longRF_pcs.rds")
+
 
 #### TESTING MODELS FOR LONGITUDE ####
-
-predLG_RFwaps <- predict(longRF_waps, newdata = wide_test) # Accuracy in test 99.2% | MAE 7.328 
+predLG_RFwaps <- predict(longRF_waps, newdata = wide_test) # Accuracy in test 99.5% | MAE 6.08
 postResample(predLG_RFwaps, wide_test$LONGITUDE)  
 
-
-# Create df with real and predicted results (by all models with best results)
-long_predictions <- as.data.frame(wide_test$BUILDINGID)
-long_predictions$predictionRFwaps <- predF_RFwaps
+predLG_RFpcs <- predict(longRF_pcs, newdata = testing_PCA) # Accuracy in test 99.5% | MAE 6.28 
+postResample(predLG_RFpcs, testing_PCA$LONGITUDE)
 
 
 # add final predictions to sample_train and wide_test
-sample_train$pred_long <- longRF_waps$predicted
-wide_test$pred_long <- predLG_RFwaps
+sample_train$pred_long <- longRF_pcs$predicted
+sample_PCA$pred_long <- longRF_pcs$predicted
+wide_test$pred_long <- predLG_RFpcs
+testing_PCA$pred_long <- predLG_RFpcs
 
-# add final predictions to A NEW df for longitude
+
+# Create df with real and predicted results (by all models with best results)
 long_predictions <- as.data.frame(wide_test$LONGITUDE)
 long_predictions$predictionRFwaps <- predLG_RFwaps
+long_predictions$predictionRFpcs <- predLG_RFpcs
+names(long_predictions)[1] <- paste("real.in.validation")
+
+# error analysis for latitude predictions
+long_predictions$RF_MAE<- abs(long_predictions$real.in.validation - 
+                                long_predictions$predictionRFwaps)
+long_predictions$RF_MRE <- long_predictions$RF_MAE/long_predictions$real.in.validation
+
+
+# Error analysis for longitude (Random Forest model)
+# MAE
+ggplot(data = long_predictions,
+       aes(x= long_predictions$real.in.validation,
+           y = long_predictions$RF_MAE))+
+  geom_smooth()+geom_point()+ggtitle("Longitude Random Forest MAE Analysis")
+
+
+# MRE
+ggplot(data = lat_predictions,
+       aes(x= lat_predictions$real.in.validation,
+           y = lat_predictions$RF_MRE))+
+  geom_smooth()+geom_point()+ggtitle("Longitude Random Forest MRE Analysis")
+
+
+
 
 
 
 #################################### LATITUDE ######################################
 
-# Train a random forest using WAPS & BUILDING independent variable to predict floor
-system.time(latRF_waps <- randomForest(y= sample_train$LATITUDE,
-                                        x= sample_train[vars_longpred],
-                                        importance=T,
-                                        method="rf",
-                                        ntree=100))
+vars_latwaps <- grep("WAP|pred_building|pred_long", names(sample_train), value = TRUE)
 
-saveRDS(latRF_waps, "./Models/latRF_waps.rds")
+vars_latpcs <- grep("PC|pred_building|pred_long", names(sample_PCA), value = TRUE) 
+
+# Train a random forest using WAPS & BUILDING independent variable to predict floor
+set.seed(123)
+# system.time(latRF_waps <- randomForest(y= sample_train$LATITUDE,
+#                                         x= sample_train[vars_latwaps],
+#                                         importance=T,
+#                                         method="rf",
+#                                         ntree=100))
+# saveRDS(latRF_waps, "./Models/latRF_waps.rds")
 latRF_waps <- readRDS("./Models/latRF_waps.rds")
 
 
-
-#### TESTING MODELS FOR LONGITUDE ####
-
-predLAT_RFwaps <- predict(latRF_waps, newdata = wide_test) # Accuracy in test 97.6% | MAE 8.82% 
-postResample(predLAT_RFwaps, wide_test$LATITUDE)  
-
-
-
-
-
-new_tr <- select_at(wide_train, waps_wtr2)
-new_tr <- cbind(wapsbf_tr, 
-                sample_train$pred_buidling, 
-                wide_train$FLOOR,
-                wide_train$LONGITUDE,
-                wide_train$LATITUDE)
-
-new_tst <- select_at(wide_test, waps_wtst2)
-new_tst <- cbind(wapsbf_tst, 
-                 wide_test$BUILDINGID, 
-                 wide_test$FLOOR,
-                 wide_test$LONGITUDE,
-                 wide_test$LATITUDE)
-
-
-vars_longpred <- grep("WAP|BUILDING|FLOOR", 
-                      names(new_tr), value= TRUE)
-
-sample_new <- vars_longpred %>% group_by(`wide_train$BUILDINGID`,
-                                     `wide_train$FLOOR`) %>% sample_n(727) # it takes x samples from each building & floor
-
-
-
-
-# model & confusion matrix
-# system.time(floorRF_waps <- randomForest(y= sample_train$FLOOR,           # 0    1    2    3   4  class.error
-#                                         x= sample_train[waps_wtr2],  # 0 2158    9    0   14   0     0.01055
-#                                         importance=T,               # 1    3 2175    2    1   0     0.00275
-#                                         method="rf",                # 2    0    3 2172    6   0     0.00413
-#                                         ntree=100,                  # 3    0    0    2 2178   1     0.00138
-#                                         mtry=34)) # best mtry       # 4    0    0    0    2 725     0.00275
-
-
-
-
-# In order to predict longitude we should include building and floor 
-# but as they are factors and we will run a regression
-# we convert both variables to dummies
-b_dummy <- dummify(wide_train$BUILDINGID)
-f_dummy <- dummify(wide_train$FLOOR)
-# dummies <- predict(dummyVars(~ BUILDINGID, data = wide_train), 
-#                    newdata = wide_test)
-
-dummy_train_lg <- wide_train
-
-dummify <- dummyVars("~BUILDINGID", 
-                     data = wide_train) 
-dummify
-regression_train <- data.frame(predict(regression_train, 
-                                       newdata = existing)) 
-
-# data.frame(predict(existing.dummified, 
-#                       newdata = existing)) # new df with dummified Product Type
-
-
-
-# Get the best mtry
-bestmtry_waps_long <- tuneRF(sample_train[waps_buil], 
-                             sample_train$LONGITUDE, 
-                             ntreeTry=100,
-                             stepFactor=2,
-                             improve=0.05,
-                             trace=TRUE, 
-                             plot=T) 
-
-# Train a random forest using that mtry
-system.time(longRF_waps <- randomForest(y=sample$LONGITUDE,x=sample[WAPs],importance=T,method="rf", ntree=100, mtry=22))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-########################################## LATITUDE ##################################################
-
-##### TRAINING MODELS FOR LATITUDE ####
-
-
-
-
-
-
-
-
-
-
-
-wide_test$lmpredictions <- applymodel1
-# wide_test$absolute.errorlm <- abs(testing$Volume - 
-#                                   testing$lmpredictions)
-# testing$relative.errorlm <- testing$absolute.errorlm/testing$Volume
-# 
-# Errors.LM <- ggplot(data = testing, aes(x =Volume, y = absolute.errorlm))+
-#   geom_smooth()+geom_point()+ggtitle("Absolute Errors in LM")
-# Errors.LM
-# 
-# Metrics.LM <- postResample(pred = testing$lmpredictions, obs = testing$Volume)
-# 
-
-
-
-
-
-
-
-
-# floor_predictions <- c()
-# long_predictions <- c()
-# lat_predictions <- c()
-# 
-
-# models_resamples <- resamples(list(RF = modelRF_class, RF = modelRF_wide))
-
-
-# GRADIENT BOOSTING TREES
+# Train a random forest using pcs instead of waps (sample_PCA)
 set.seed(123)
-modelGBT <- caret::train(BUILDINGID~ .,
-                         data = sample_train, 
-                         trControl= fitControl, 
-                         method = "gbm")
+# model with PCs instead of waps
+# system.time(latRF_pcs <- randomForest(y=sample_PCA$LATITUDE,
+#                                  x=sample_PCA[vars_latpcs],
+#                                  importance=T,
+#                                  method="rf",
+#                                  ntree=100))
+saveRDS(latRF_waps, "./Models/latRF_pcs.rds")
+latRF_pcs <- readRDS("./Models/latRF_pcs.rds")
 
-modelGBT$results # shrinkage 0.1; interaction depth 3; ntrees 150;  R^2 0.9972912; MAE;0.01499280 
-postResample
+#### TESTING MODELS FOR LATITUDE ####
+predLAT_RFwaps <- predict(latRF_waps, newdata = wide_test) # Accuracy in test 98.5% | MAE 5.96 
+postResample(predLAT_RFwaps, wide_test$LATITUDE)
 
-
-
-
-# estandarizar phone tendria sentido
-
-
-#how do we decide how many components should we select for modeling stage
-
-
-# DISTANCE BASED MODELLING
-# Before running distance based models we need to standarize the attributes 
-# for them to be in the same scale
-# Attributes tandardization to check if it helps the model perform better 
-# DUMMIFY <- + range 
+predLAT_RFpcs <- predict(latRF_pcs, newdata = testing_PCA) # Accuracy in test 98.6% | MAE 5.73 
+postResample(predLAT_RFpcs, testing_PCA$LATITUDE)
 
 
+# add final predictions to sample_train and wide_test
+sample_train$pred_lat <- latRF_waps$predicted
+wide_test$pred_lat <- predLAT_RFwaps
+
+# Create df with real and predicted results (by all models with best results)
+lat_predictions <- as.data.frame(wide_test$LATITUDE)
+lat_predictions$predictionRFpcs <- predLAT_RFpcs
+names(lat_predictions)[1] <- paste("real.in.validation")
+
+# error analysis for latitude predictions
+lat_predictions$RF_MAE<- abs(lat_predictions$real.in.validation - lat_predictions$predictionRFwaps)
+lat_predictions$RF_MRE <- lat_predictions$RF_MAE/lat_predictions$real.in.validation
 
 
-#LINEAR MODEL ()
-set.seed(123)
-model1_lm <- lm(BUILDINGID ~ .,
-                data = sample_train)
-model1_lm
+# Error analysis for latitude (Random Forest model)
+# MAE
+ggplot(data = lat_predictions,
+       aes(x= lat_predictions$real.in.validation,
+           y = lat_predictions$RF_MAE))+
+  geom_smooth()+geom_point()+ggtitle("Latitude Random Forest MAE Analysis")
 
 
-# DISTANCE BASED MODELS
-
-sapply(wide_train[, waps],var) # check variance
-range(sapply(wide_train[, waps],var)) # variance seems strong in this context
-widetrain_standardized <- as.data.frame(scale(wide_train[, waps]))
-sapply(widetrain_standardized, sd) # effect of standarization sd = 1
-
-
-################################### PREDICT LONGITUDE ############################
-
-# DECISION BASED
-# RANDOM FOREST
-
-# DISTANCE BASED
+# MRE
+ggplot(data = lat_predictions,
+       aes(x= lat_predictions$real.in.validation,
+           y = lat_predictions$RF_MRE))+
+  geom_smooth()+geom_point()+ggtitle("Latitude Random Forest MRE Analysis")
 
 
 
+##################################### FINAL PREDICTIONS ####################################
+
+final_predictions <- as.data.frame(cbind(b_predictions$predictionRFpcs, 
+                           f_predictions$predictionRFwaps, 
+                           long_predictions$predictionRFwaps,
+                           lat_predictions$predictionRFpcs))
+
+names(final_predictions) <- c("pred_building", "pred_floor", "pred_longitude", "pred_latitude")
 
 
+# esquisser()
 
-################################# OTHER STUFF ############################
-
-
-# Create and set list to contain all the predictions
-
-# predictions_list <- c()
-# 
-# for (model in building_models) {
-#   building_predictions[[model]] <- as.data.frame()
-# }
-
-
-
-
-# COUNT WAPs per BUILDING & FLOOR
-# # filter by building and floor to examine signals further
-# building_floor_df <- c()
-# WAPid_count <- c()
-# 
-# building_floor <- unique(long_train$BuildingFloor)
-# 
-# for (bf in building_floor) {
-#   building_floor_df[[bf]] <- as.data.frame(filter(long_train, BuildingFloor == bf))
-# 
-#   WAPid_count[[bf]] <- distinct(building_floor_df[[bf]], WAPid, .keep_all= TRUE) # Find the WAPs in each floor and building
-# 
-#   detection <- (WAPid_count[[bf]]$WAPid %in% WAPid_count[[bf]]$WAPid ==TRUE) # 146 WAPs  appear in two df at the same time
-# }
