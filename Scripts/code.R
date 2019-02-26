@@ -607,7 +607,7 @@ wide_test$pred_floor <- predF_RFwaps
 
 ##### TRAINING MODELS FOR LONGITUDE ####
 
-# Train a random forest using waps as independent variable to predict floor
+# Train a random forest using WAPS & BUILDING independent variable to predict floor
 vars_longpred <- grep("WAP|pred_building", 
                       names(sample_train), value= TRUE)
 
@@ -620,14 +620,14 @@ vars_longpred <- grep("WAP|pred_building",
 #                                trace=TRUE,
 #                                plot=T) # Result: 52
 
-system.time(longRF_waps <- randomForest(y= sample_train$LONGITUDE,
-                                        x= sample_train[vars_longpred],
-                                        importance=T,
-                                        method="rf",
-                                        ntree=100,
-                                        mtry=52))
+# system.time(longRF_waps <- randomForest(y= sample_train$LONGITUDE,
+#                                         x= sample_train[vars_longpred],
+#                                         importance=T,
+#                                         method="rf",
+#                                         ntree=100,
+#                                         mtry=52))
 
-saveRDS(longRF_waps, "./Models/longRF_waps.rds")
+# saveRDS(longRF_waps, "./Models/longRF_waps.rds")
 longRF_waps <- readRDS("./Models/longRF_waps.rds")
 
 
@@ -644,12 +644,33 @@ long_predictions$predictionRFwaps <- predF_RFwaps
 
 
 # add final predictions to sample_train and wide_test
-sample_train$pred_floor <- floorRF_waps$predicted
-wide_test$pred_floor <- predF_RFwaps
+sample_train$pred_long <- longRF_waps$predicted
+wide_test$pred_long <- predLG_RFwaps
+
+# add final predictions to A NEW df for longitude
+long_predictions <- as.data.frame(wide_test$LONGITUDE)
+long_predictions$predictionRFwaps <- predLG_RFwaps
 
 
 
+#################################### LATITUDE ######################################
 
+# Train a random forest using WAPS & BUILDING independent variable to predict floor
+system.time(latRF_waps <- randomForest(y= sample_train$LATITUDE,
+                                        x= sample_train[vars_longpred],
+                                        importance=T,
+                                        method="rf",
+                                        ntree=100))
+
+saveRDS(latRF_waps, "./Models/latRF_waps.rds")
+latRF_waps <- readRDS("./Models/latRF_waps.rds")
+
+
+
+#### TESTING MODELS FOR LONGITUDE ####
+
+predLAT_RFwaps <- predict(latRF_waps, newdata = wide_test) # Accuracy in test 97.6% | MAE 8.82% 
+postResample(predLAT_RFwaps, wide_test$LATITUDE)  
 
 
 
