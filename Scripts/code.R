@@ -5,7 +5,6 @@
 ## Author: Maria Farrés
 
 
-
 ########################## SET ENVIRONMENT #######################################
 
 #Load required libraries 
@@ -29,7 +28,6 @@ new_test <- read_csv("./DataSets/testData.csv")
 # wide format df
 wide_train <- original_train # train in wide format
 wide_test <- original_test # test in wide format
-
 
 
 # long format df
@@ -58,6 +56,15 @@ rm(original_test)
 # NAs mean that the WAPs have not recorded signal in a determinate user location
 # instead of deleting those signals we set them to -105 in a new data frame 
 # to indicate that the signal is really low in that location
+
+# Visualize WAP 12 distribution to explain 100 meaning
+ggplot(data = wide_train) +
+  aes(x = WAP012) +
+  geom_histogram(bins = 10, fill = "#0c4c8a") +
+  labs(title="Single WAP sample distribution")+
+  theme_minimal()
+ggplotly(p = ggplot2::last_plot())
+
 
 vars_waps <- colnames(wide_train[, 1:520])
 wide_train[, vars_waps][wide_train[, vars_waps] == 100] <- -105 # place them as low signal 
@@ -159,6 +166,20 @@ wide_test <- cbind(common_waps_tst, wide_test[368:376])
 rm(common_waps_tr, common_waps_tst)
 
 # real duplicates
+anyDuplicated(wide_train)
+plotDuplicated <- as.data.frame(duplicated(wide_train))
+
+ggplot(data = plotDuplicated) +
+  aes(x = `duplicated(wide_train)`) +
+  geom_bar(fill = "#4292c6") +
+  labs(title = "Duplicates proportion in data",
+    x = "Duplicated observations",
+    y = "Observations") +
+  theme_minimal()
+
+plot(duplicated(wide_train))
+
+# Duplicates treatment
 wide_train <- unique(wide_train)
 long_train <- unique(long_train)
         # new_test <- unique(new_test) # 5179 to 5172 obs
@@ -441,6 +462,7 @@ testing_PCA <- cbind(testing_PCA, vars_not_waps_tst)
 testing_newPCA <- predict(compress, new_test[,vars_waps_newtst])
 vars_not_waps_newtst <- new_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
                                    "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
+testing_newPCA <- testing_newPCA[ , -c(1:208)]
 testing_newPCA <- cbind(testing_newPCA, vars_not_waps_newtst)
 
       # new_testing_PCA <- predict(compress_newtr, new_test[,vars_waps_newtst])
@@ -751,6 +773,7 @@ new_predLG_RFpcs <- predict(longRF_pcs, newdata = testing_newPCA)
 new_test$pred_long <- new_predLG_RFwaps # BETTER ACCURACY IN TRAIN&VALIDATION
 testing_newPCA$pred_long <- new_predLG_RFwaps
 
+
 #################################### LATITUDE ######################################
 
 vars_latwaps <- grep("WAP|pred_building|pred_long", names(sample_train), value = TRUE)
@@ -776,11 +799,12 @@ set.seed(123)
 #                                  importance=T,
 #                                  method="rf",
 #                                  ntree=100))
-saveRDS(latRF_waps, "./Models/latRF_pcs.rds")
+# saveRDS(latRF_pcs, "./Models/latRF_pcs.rds")
 latRF_pcs <- readRDS("./Models/latRF_pcs.rds")
 
 #### TESTING MODELS FOR LATITUDE ####
-predLAT_RFwaps <- predict(latRF_waps, newdata = wide_test) # Accuracy in test 98.5% | MAE 5.96 
+set.seed(123)
+predLAT_RFwaps <- predict(latRF_waps, newdata = wide_test) # Accuracy in test 98.5% | MAE 5.88 
 postResample(predLAT_RFwaps, wide_test$LATITUDE)
 
 predLAT_RFpcs <- predict(latRF_pcs, newdata = testing_PCA) # Accuracy in test 98.6% | MAE 5.73 
@@ -818,17 +842,10 @@ ggplot(data = lat_predictions,
 
 #### PREDICT LATITUDE IN NEW TEST <- FINAL OUTPUT
 
-x <- new_test[!new_test %in% sample_train]
-
-x <- sample_train[!sample_train %in% new_test]
-
-data2[data1$char1 ! %in% 
-        >> > c("string1","string2"),1]
-
 new_predLAT_RFwaps <- predict(latRF_waps, newdata = new_test) 
 new_predLAT_RFpcs <- predict(latRF_pcs, newdata = testing_newPCA) # BETTER ACCURACY IN TRAIN&VALIDATION
 
-
+testing_newPCA$pred_lat <- new_predLAT_RFpcs
 
 
 ##################################### FINAL PREDICTIONS ####################################
@@ -841,5 +858,12 @@ final_predictions <- as.data.frame(cbind(b_predictions$predictionRFpcs,
 names(final_predictions) <- c("pred_building", "pred_floor", "pred_longitude", "pred_latitude")
 
 
-# esquisser()
+new_test_predictions <- as.data.frame(cbind(testing_newPCA$pred_building, 
+                                         testing_newPCA$pred_floor, 
+                                         testing_newPCA$pred_long,
+                                         testing_newPCA$pred_lat))
+
+names(new_test_predictions) <- c("pred_building", "pred_floor", "pred_longitude", "pred_latitude")
+
+write.csv(new_test_predictions, file= "NewTestPredictions.csv")
 
