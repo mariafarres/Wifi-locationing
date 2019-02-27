@@ -137,50 +137,39 @@ ZeroVar_check_test <- nearZeroVar(wide_test[1:520], saveMetrics = TRUE) #
 wide_test <- wide_test[-which(ZeroVar_check_test$zeroVar == TRUE)]
 
 
-ZeroVar_check_newtest <- nearZeroVar(new_test[1:520], saveMetrics = TRUE) #
-new_test <- new_test[-which(ZeroVar_check_newtest$zeroVar == TRUE)]
+    # ZeroVar_check_newtest <- nearZeroVar(new_test[1:520], saveMetrics = TRUE) #
+    # new_test <- new_test[-which(ZeroVar_check_newtest$zeroVar == TRUE)]
 
-rm(ZeroVar_check_test, ZeroVar_check_newtest, ZeroVar_check_train)
+rm(ZeroVar_check_test, ZeroVar_check_train)
 
 vars_waps_tr <- grep("WAP", names(wide_train), value = TRUE) # grep 465 WAPs remaining after applying zeroVar
 vars_waps_tst <- grep("WAP", names(wide_test), value = TRUE) # grep 367 WAPs " "
 vars_waps_newtst <- grep("WAP", names(new_test), value = TRUE) # grep 270 WAPs " "
 common_waps <- intersect(vars_waps_tst, vars_waps_tr) # 312 common waps
-common_waps2 <- intersect(vars_waps_newtst, vars_waps_tr) # 238 common waps
+
 
 common_waps_tr<- select_at(wide_train[vars_waps_tr], common_waps)
 common_waps_tst <- select_at(wide_test[vars_waps_tst], common_waps)
 
-common_waps_tr2 <- select_at(wide_train[vars_waps_tr], common_waps2)
-common_waps_newtst <- select_at(new_test[vars_waps_newtst], common_waps2)
-
-new_wide_train <- cbind(common_waps_tr2, wide_train[466:474])
-new_test <- cbind(common_waps_newtst, new_test[271:279])
 
 wide_train <- cbind(common_waps_tr, wide_train[466:474])
 wide_test <- cbind(common_waps_tst, wide_test[368:376])
 
 
-rm(common_waps_tr, common_waps_tst, common_waps_newtst)
+rm(common_waps_tr, common_waps_tst)
 
 # real duplicates
 wide_train <- unique(wide_train)
 long_train <- unique(long_train)
-new_test <- unique(new_test) # 5179 to 5172 obs
-new_wide_train <- unique(new_wide_train) # 19937 to 19288
+        # new_test <- unique(new_test) # 5179 to 5172 obs
+        # new_wide_train <- unique(new_wide_train) # 19937 to 19288
 
 
 
 # FEATURE ENGINEERING  
 # Create new attribute BUILDING-FLOOR
-long_train$BuildingFloor <- paste(long_train$BUILDINGID, long_train$FLOOR, sep = "-")
+long_train$BuildingFloor <-  paste(long_train$BUILDINGID, long_train$FLOOR, sep = "-")
 long_test$BuildingFloor <- paste(long_test$BUILDINGID, long_test$FLOOR, sep = "-")
-
-wide_train$BuildingFloor <- paste(wide_train$BUILDINGID, wide_train$FLOOR, sep = "-")
-wide_test$BuildingFloor <- paste(wide_test$BUILDINGID, wide_test$FLOOR, sep = "-")
-
-new_test$BuildingFloor <- paste(new_test$BUILDINGID, new_test$FLOOR, sep = "-")
-new_wide_train$BuildingFloor <- paste(new_wide_train$BUILDINGID, new_wide_train$FLOOR, sep = "-")
 
 ############################# EXPLORATORY / DESCRIPTIVE ANALYSIS #############################3
 
@@ -284,6 +273,8 @@ ggplot(data = TC4_exploration) +
   geom_histogram(bins = 30) +
   theme_minimal()
 
+
+
 # User 6 captured a big proportion of data in TC3 and TC4
 # what would happen in terms of data amount if we removed user 6 records?
 TC_exploration <- long_train %>% filter(BUILDINGID == "TC")
@@ -302,12 +293,13 @@ vars_waps_tr <- grep("WAP", names(wide_train), value = TRUE) # now 312 columns
 wide_train <- wide_train %>% filter_at(vars_waps_tr, any_vars(. < -30)) # filter rows that do not contain values above -30dbm in WAP columns
 
 vars_waps_tst <- grep("WAP", names(wide_test), value = TRUE) # now 312 columns
-# wide_test does not contain any >-30 dbm value
+  # wide_test does not contain any >-30 dbm value
 
 vars_waps_newtst <- grep("WAP", names(new_test), value = TRUE) # now 246 columns
-# new_test does not contain any >-30 dbm value
+  # new_test does not contain any >-30 dbm value
 
-vars_waps_trnew <- grep("WAP", names(new_wide_train), value = TRUE) # now 246 columns
+        # vars_waps_trnew <- grep("WAP", names(new_wide_train), value = TRUE) # now 246 columns
+
 
 # ANALYSIS OF VALUABLE SIGNALS' INTENSITY
 # this will help us group the signals by intensity, and consequently help us estimate
@@ -384,6 +376,8 @@ ggplot(data = buildingTC) +
   facet_wrap(vars(FLOOR))
 
 
+
+
 ######################### ATTRIBUTE SELECTION & ENGINEERING ##########################
 
 # in order to reduce dimensions but keep important information given by the waps
@@ -394,14 +388,10 @@ compress <- preProcess(wide_train[ ,vars_waps_tr],
                        method = c("center", "scale", "pca"), 
                        thresh = 0.80) # PCA needed 77 components to capture 80 percent of the variance
 
-compress_tst <- preProcess(wide_test[ ,vars_waps_tst], 
-                       method = c("center", "scale", "pca"), 
-                       thresh = 0.80) # PCA needed 71 components to capture 80 percent of the variance
-
-compress_newtst <- preProcess(new_test[ ,vars_waps_newtst], 
-                           method = c("center", "scale", "pca"), 
-                           thresh = 0.80) # PCA needed 69 components to capture 80 percent of the variance
-
+  # compress_newtr <- preProcess(new_wide_train[ ,vars_waps_trnew], 
+  #                               method = c("center", "scale", "pca"), 
+  #                               thresh = 0.80) # PCA needed 63 components to capture 80 percent of the variance
+  # 
 
 
 # PCA visualization
@@ -435,32 +425,47 @@ vars_not_waps_tr <- wide_train[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
 training_PCA <- cbind(training_PCA, vars_not_waps_tr)
 
 # Preparing the VALIDATION set for PCA
-testing_PCA <- predict(compress_tst, wide_test[,vars_waps_tst])
+testing_PCA <- predict(compress, wide_test[,vars_waps_tst])
 vars_not_waps_tst <- wide_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
                                    "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
 testing_PCA <- cbind(testing_PCA, vars_not_waps_tst)
 
+# Preparing the NEW TRAIN and TEST set for PCA
 
-# Preparing the NEW TEST set for PCA
-new_testing_PCA <- predict(compress_newtst, wide_test[,vars_waps_newtst])
-vars_not_waps_newtst <- wide_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
+      # new_training_PCA <-  predict(compress_newtr, new_wide_train[,vars_waps_trnew])
+      # vars_not_waps_newtr <- new_wide_train[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
+      #                                    "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
+      # new_training_PCA <- cbind(new_training_PCA, vars_not_waps_newtr)
+ 
+
+testing_newPCA <- predict(compress, new_test[,vars_waps_newtst])
+vars_not_waps_newtst <- new_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
                                    "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
-new_testing_PCA <- cbind(new_testing_PCA, vars_not_waps_tst)
+testing_newPCA <- cbind(testing_newPCA, vars_not_waps_newtst)
+
+      # new_testing_PCA <- predict(compress_newtr, new_test[,vars_waps_newtst])
+      # vars_not_waps_newtst <- new_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
+      #                                    "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
+      # new_testing_PCA <- cbind(new_testing_PCA, vars_not_waps_newtst)
 
 
 rm(PCs_sd, PCs_var, var_explained,
-   vars_not_waps_tr, vars_not_waps_tst, 
-   compress, compress_tst, compress_newtst)
+   vars_not_waps_tr, vars_not_waps_tst, vars_not_waps_newtst,
+   compress)
 #################################### SAMPLING & CROSS-VALIDATION #####################################
 
 # Smart sampling
-
-# training dfs available: wide_train / training_PCA
+  # for training dfs available: wide_train / training_PCA 
 
 sample_train <- wide_train %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes 727 samples from each building & floor
 
 sample_PCA <- training_PCA %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes 727 samples from each building & floor
 
+      # sample_newtr <- new_wide_train %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes 727 samples from each building & floor
+      # 
+      # sample_newPCA <- new_training_PCA %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes 727 samples from each building & floor
+
+  
 
 # Cross-Validation
 fitControl <- trainControl(
@@ -481,7 +486,7 @@ options(digits = 3)
 
 # RANDOM FOREST (DECISION BASED MODEL)
 set.seed(123)
-# Train a random forest using waps as independent variable 
+# Train a random forest using waps as independent variable (sample_train)
 # best mtry search for sample_train 
 #(wide format df without zerovar & different waps & duplicates & >-30dbm)
 
@@ -500,18 +505,16 @@ set.seed(123)
 #                                   ntree=100,
 #                                   mtry=5)) # best mtry
 
-
 # saveRDS(buildingRF_waps, "./Models/buildingRF_waps.rds")
 buildingRF_waps <- readRDS("./Models/buildingRF_waps.rds")
 confusionMatrix(buildingRF_waps$predicted, sample_train$BUILDINGID) # accuracy = 99.8%
 # kappa = 99.7%
 
 
-
 # Train a random forest using pcs instead of waps (sample_PCA)
 pcs <- grep("PC", names(sample_PCA), value = TRUE) 
-set.seed(123)
 
+set.seed(123)
 # model & confusion matrix
 # system.time(buildingRF_pcs <-randomForest(y=sample_PCA$BUILDINGID,             #      TI   TD   TC class.error
 #                                  x=sample_PCA[pcs],                             # TI 2908    0    0    0.000000
@@ -520,8 +523,10 @@ set.seed(123)
 #                                  ntree=100))
 # 
 # saveRDS(buildingRF_pcs, "./Models/buildingRF_pcs.rds")
+
 buildingRF_pcs <- readRDS("./Models/buildingRF_pcs.rds") # better results checking confusion matrix! 
 confusionMatrix(buildingRF_pcs$predicted, sample_PCA$BUILDINGID) # accuracy = 99.8%  # kappa = 99.8%
+
 
 
 #### PREDICTING BUILDING IN VALIDATION ####
@@ -538,14 +543,6 @@ confusionMatrix(predB_RFpcs, wide_test$BUILDINGID)  # Accuracy in test 100%
 # TC   0   0 268
 
 
-#### PREDICTING BUILDING IN NEW TEST ####
-new_predB_RFwaps <- predict(buildingRF_waps, newdata = new_test)
-confusionMatrix(new_predB_RFwaps, wide_test$BUILDINGID)  # Accuracy in test xxxxx%
-
-predB_RFpcs <- predict(buildingRF_pcs, newdata = testing_PCA)
-confusionMatrix(predB_RFpcs, wide_test$BUILDINGID)  # Accuracy in test xxxxxx%
-
-
 
 # Create df with real and predicted results (by all models with best results)
 b_predictions <- as.data.frame(wide_test$BUILDINGID)
@@ -560,7 +557,13 @@ wide_test$pred_building <- predB_RFpcs
 testing_PCA$pred_building <- predB_RFpcs
 
 
+###### PREDICTING BUILDING IN NEW TEST <- NEW TEST PREDICTION OUTPUT
 
+new_predB_RFwaps <- predict(buildingRF_waps, newdata = new_test) # BETTER ACCURACY IN TRAIN&VALIDATION
+  # new_predB_RFpcs <- predict(buildingRF_pcs, newdata = testing_newPCA) 
+
+new_test$pred_building <- new_predB_RFwaps
+testing_newPCA$pred_building <- new_predB_RFwaps
 
 ############################################# FLOOR ##################################################
 
@@ -649,6 +652,14 @@ wide_test$pred_floor <- predF_RFwaps
 testing_PCA$pred_floor <- predF_RFwaps
 
 
+#### PREDICTING FLOOR IN NEW TEST <- FINAL OUTPUT
+
+# new_predF_RFwaps <- predict(floorRF_waps, newdata = new_test) 
+new_predF_RFpcs <- predict(floorRF_pcs, newdata = testing_newPCA) # BETTER ACCURACY IN TRAIN&VALIDATION
+
+new_test$pred_floor <- new_predF_RFpcs
+testing_newPCA$pred_floor <- new_predF_RFpcs
+
 ########################################### LONGITUDE ##################################################
 
 ##### TRAINING MODELS FOR LONGITUDE ####
@@ -681,11 +692,14 @@ longRF_pcs <- readRDS("./Models/longRF_pcs.rds")
 
 
 #### TESTING MODELS FOR LONGITUDE ####
+set.seed(123)
 predLG_RFwaps <- predict(longRF_waps, newdata = wide_test) # Accuracy in test 99.5% | MAE 6.08
 postResample(predLG_RFwaps, wide_test$LONGITUDE)  
 
+set.seed(123)
 predLG_RFpcs <- predict(longRF_pcs, newdata = testing_PCA) # Accuracy in test 99.5% | MAE 6.28 
 postResample(predLG_RFpcs, testing_PCA$LONGITUDE)
+
 
 
 # add final predictions to sample_train and wide_test
@@ -701,7 +715,7 @@ long_predictions$predictionRFwaps <- predLG_RFwaps
 long_predictions$predictionRFpcs <- predLG_RFpcs
 names(long_predictions)[1] <- paste("real.in.validation")
 
-# error analysis for latitude predictions
+# error analysis for longitude predictions
 long_predictions$RF_MAE<- abs(long_predictions$real.in.validation - 
                                 long_predictions$predictionRFwaps)
 long_predictions$RF_MRE <- long_predictions$RF_MAE/long_predictions$real.in.validation
@@ -716,15 +730,26 @@ ggplot(data = long_predictions,
 
 
 # MRE
-ggplot(data = lat_predictions,
-       aes(x= lat_predictions$real.in.validation,
-           y = lat_predictions$RF_MRE))+
+ggplot(data = long_predictions,
+       aes(x= long_predictions$real.in.validation,
+           y = long_predictions$RF_MRE))+
   geom_smooth()+geom_point()+ggtitle("Longitude Random Forest MRE Analysis")
 
 
+#### PREDICT LONGITUDE IN NEW TEST <- FINAL OUTPUT
+        # common_waps2 <- intersect(vars_waps_newtst, vars_waps_tr) # 238 common waps
+        # common_waps_tr2 <- select_at(wide_train[vars_waps_tr], common_waps2)
+        # # common_waps_newtst <- select_at(new_test[vars_waps_newtst], common_waps2)
+        # 
+        # # new_wide_train <- cbind(common_waps_tr2, wide_train[466:474])
+        # # new_test <- cbind(common_waps_newtst, new_test[271:279])
+
+new_predLG_RFwaps <- predict(longRF_waps, newdata = new_test) 
+new_predLG_RFpcs <- predict(longRF_pcs, newdata = testing_newPCA) 
 
 
-
+new_test$pred_long <- new_predLG_RFwaps # BETTER ACCURACY IN TRAIN&VALIDATION
+testing_newPCA$pred_long <- new_predLG_RFwaps
 
 #################################### LATITUDE ######################################
 
@@ -789,6 +814,20 @@ ggplot(data = lat_predictions,
        aes(x= lat_predictions$real.in.validation,
            y = lat_predictions$RF_MRE))+
   geom_smooth()+geom_point()+ggtitle("Latitude Random Forest MRE Analysis")
+
+
+#### PREDICT LATITUDE IN NEW TEST <- FINAL OUTPUT
+
+x <- new_test[!new_test %in% sample_train]
+
+x <- sample_train[!sample_train %in% new_test]
+
+data2[data1$char1 ! %in% 
+        >> > c("string1","string2"),1]
+
+new_predLAT_RFwaps <- predict(latRF_waps, newdata = new_test) 
+new_predLAT_RFpcs <- predict(latRF_pcs, newdata = testing_newPCA) # BETTER ACCURACY IN TRAIN&VALIDATION
+
 
 
 
