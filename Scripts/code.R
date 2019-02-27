@@ -558,11 +558,11 @@ confusionMatrix(predB_RFwaps, wide_test$BUILDINGID)  # Accuracy in test 99,8%
 predB_RFpcs <- predict(buildingRF_pcs, newdata = testing_PCA)
 confusionMatrix(predB_RFpcs, wide_test$BUILDINGID)  # Accuracy in test 100%
 
-# Reference
+#              Reference
 # Prediction  TI  TD  TC
-# TI 536   0   0
-# TD   0 307   0
-# TC   0   0 268
+#         TI 536   0   0
+#         TD   0 307   0
+#         TC   0   0 268
 
 
 
@@ -623,31 +623,23 @@ confusionMatrix(floorRF_waps$predicted, sample_train$FLOOR)  # Accuracy 99.5%
 
 # Train a random forest using pcs instead of waps (sample_PCA)
 set.seed(123)
-# best mtry search for sample_PCA (wide format df without duplicates & >-30dbm & PCA applied)
-# bestmtry_pcs_floor <- tuneRF(sample_PCA[pcs],      # look for the best mtry
-#                       sample_PCA$FLOOR,
-#                       ntreeTry=100,
-#                       stepFactor=2,
-#                       improve=0.05,
-#                       trace=TRUE,
-#                       plot=T) # Result: 11
+
 # model & confusion matrix
-# system.time(floorRF_pcs <-randomForest(y=sample_PCA$FLOOR,                # 0    1    2    3   4 class.error
-#                                  x=sample_PCA[pcs],                # 0   2155   11    0   15   0     0.01192
-#                                  importance=T,                     # 1    7   2169    5    0   0     0.00550
-#                                  method="rf",                      # 2    2     10 2152   17   0     0.01330
-#                                  ntree=100,                        # 3    0     0     18 2161   2     0.00917
-#                                  mtry=11)) # best mtry             # 4    0     0      0   8   719    0.01100
+# system.time(floorRF_pcs <-randomForest(y=sample_PCA$FLOOR,               
+#                                  x=sample_PCA[pcs],                
+#                                  importance=T,                     
+#                                  method="rf",                      
+#                                  ntree=100,                        
+#                                  mtry=11)) # best mtry             
 
 # saveRDS(floorRF_pcs, "./Models/floorRF_pcs.rds")
 floorRF_pcs <- readRDS("./Models/floorRF_pcs.rds")
-# confusionMatrix(floorRF_pcs$predicted, sample_PCA$FLOOR)
-
+confusionMatrix(floorRF_pcs$predicted, sample_PCA$FLOOR) # 99.9 ACC / 98.9 KAPPA
 
 
 #### TESTING MODELS FOR FLOOR ####
 
-predF_RFwaps <- predict(floorRF_waps, newdata = wide_test) # Accuracy in test 90%
+predF_RFwaps <- predict(floorRF_waps, newdata = wide_test) # Accuracy in test 90.9%
 confusionMatrix(predF_RFwaps, wide_test$FLOOR)             # kappa 87.3%
 # Reference
 # Prediction   0   1   2   3   4
@@ -817,7 +809,7 @@ wide_test$pred_lat <- predLAT_RFwaps
 
 # Create df with real and predicted results (by all models with best results)
 lat_predictions <- as.data.frame(wide_test$LATITUDE)
-lat_predictions$predictionRFpcs <- predLAT_RFpcs
+lat_predictions$predictionRFwaps <- predLAT_RFwaps
 names(lat_predictions)[1] <- paste("real.in.validation")
 
 # error analysis for latitude predictions
