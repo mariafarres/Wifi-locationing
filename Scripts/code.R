@@ -69,6 +69,9 @@ ggplotly(p = ggplot2::last_plot())
 vars_waps <- colnames(wide_train[, 1:520])
 wide_train[, vars_waps][wide_train[, vars_waps] == 100] <- -105 # place them as low signal 
 wide_test[, vars_waps][wide_test[, vars_waps] == 100] <- -105 
+
+new_test[,  1:520][new_test[,1:520] == 100] <- -105 
+
 rm(vars_waps)
 
 
@@ -182,7 +185,7 @@ plot(duplicated(wide_train))
 # Duplicates treatment
 wide_train <- unique(wide_train)
 long_train <- unique(long_train)
-        # new_test <- unique(new_test) # 5179 to 5172 obs
+new_test <- unique(new_test) # 5179 to 5172 obs
         # new_wide_train <- unique(new_wide_train) # 19937 to 19288
 
 
@@ -859,3 +862,17 @@ names(new_test_predictions) <- c("pred_building", "pred_floor", "pred_longitude"
 
 write.csv(new_test_predictions, file= "NewTestPredictions.csv")
 
+# predictions by building
+ggplot(data = new_test_predictions) +
+  aes(x = pred_longitude, y = pred_latitude) +
+  geom_point(alpha = .4) +
+  theme_minimal()+
+  faced
+
+
+# predictions by floor
+ggplot(data = new_test_predictions) +
+  aes(x = pred_longitude, y = pred_latitude) +
+  geom_point(color = "#0c4c8a") +
+  theme_minimal() +
+  facet_wrap(vars(pred_floor))
