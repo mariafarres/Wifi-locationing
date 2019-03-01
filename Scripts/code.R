@@ -185,7 +185,7 @@ plot(duplicated(wide_train))
 # Duplicates treatment
 wide_train <- unique(wide_train)
 long_train <- unique(long_train)
-new_test <- unique(new_test) # 5179 to 5172 obs
+
         # new_wide_train <- unique(new_wide_train) # 19937 to 19288
 
 
@@ -866,8 +866,7 @@ write.csv(new_test_predictions, file= "NewTestPredictions.csv")
 ggplot(data = new_test_predictions) +
   aes(x = pred_longitude, y = pred_latitude) +
   geom_point(alpha = .4) +
-  theme_minimal()+
-  faced
+  theme_minimal()
 
 
 # predictions by floor
