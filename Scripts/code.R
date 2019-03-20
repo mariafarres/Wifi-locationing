@@ -72,7 +72,6 @@ wide_train[wide_train == 100] <- -105 # place them as low signal
 wide_test[wide_test == 100] <- -105 
 new_test[new_test == 100] <- -105 
 
-rm(vars_waps)
 
 
 # Set NAs to low intensity RSSI in long format #####
