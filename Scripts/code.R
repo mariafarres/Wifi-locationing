@@ -68,11 +68,9 @@ ggplot(data = wide_train) +
 ggplotly(p = ggplot2::last_plot())
 
 
-vars_waps <- colnames(wide_train[, 1:520])
-wide_train[, vars_waps][wide_train[, vars_waps] == 100] <- -105 # place them as low signal 
-wide_test[, vars_waps][wide_test[, vars_waps] == 100] <- -105 
-
-new_test[,  1:520][new_test[,1:520] == 100] <- -105 
+wide_train[wide_train == 100] <- -105 # place them as low signal
+wide_test[wide_test == 100] <- -105 
+new_test[new_test == 100] <- -105 
 
 rm(vars_waps)
 
