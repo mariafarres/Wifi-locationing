@@ -8,16 +8,18 @@
 ########################## SET ENVIRONMENT #######################################
 
 #Load required libraries 
-pacman:: p_load("readr","dplyr", "tidyr", "ggplot2", "plotly", 
+pacman:: p_load("rstudioapi", "readr","dplyr", "tidyr", "ggplot2", "plotly", 
                 "data.table", "reshape2","ggridges", "party",
                 "esquisse", "caret", "randomForest", 
                 "hablar")
 
-#Set working directory
-setwd("C:/Users/usuario/Desktop/UBIQUM/Project 8 - Wifi locationing/Wifi-locationing")
+# Set working directory 
+current_path = getActiveDocumentContext()$path
+setwd(dirname(current_path))
+setwd("..") 
 
 
-#Read initial data sets
+# Import data 
 original_train <- read_csv("./DataSets/trainingData.csv")
 original_test <- read_csv("./DataSets/validationData.csv")
 new_test <- read_csv("./DataSets/testData.csv")
