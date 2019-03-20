@@ -145,10 +145,6 @@ wide_train <- wide_train[-which(ZeroVar_check_train$zeroVar == TRUE)] # we remov
 ZeroVar_check_test <- nearZeroVar(wide_test[1:520], saveMetrics = TRUE) #
 wide_test <- wide_test[-which(ZeroVar_check_test$zeroVar == TRUE)]
 
-
-    # ZeroVar_check_newtest <- nearZeroVar(new_test[1:520], saveMetrics = TRUE) #
-    # new_test <- new_test[-which(ZeroVar_check_newtest$zeroVar == TRUE)]
-
 rm(ZeroVar_check_test, ZeroVar_check_train)
 
 vars_waps_tr <- grep("WAP", names(wide_train), value = TRUE) # grep 465 WAPs remaining after applying zeroVar
@@ -184,9 +180,6 @@ plot(duplicated(wide_train))
 # Duplicates treatment
 wide_train <- unique(wide_train)
 long_train <- unique(long_train)
-
-        # new_wide_train <- unique(new_wide_train) # 19937 to 19288
-
 
 
 # FEATURE ENGINEERING  
@@ -316,12 +309,8 @@ vars_waps_tr <- grep("WAP", names(wide_train), value = TRUE) # now 312 columns
 wide_train <- wide_train %>% filter_at(vars_waps_tr, any_vars(. < -30)) # filter rows that do not contain values above -30dbm in WAP columns
 
 vars_waps_tst <- grep("WAP", names(wide_test), value = TRUE) # now 312 columns
-  # wide_test does not contain any >-30 dbm value
 
 vars_waps_newtst <- grep("WAP", names(new_test), value = TRUE) # now 246 columns
-  # new_test does not contain any >-30 dbm value
-
-        # vars_waps_trnew <- grep("WAP", names(new_wide_train), value = TRUE) # now 246 columns
 
 
 # ANALYSIS OF VALUABLE SIGNALS' INTENSITY
@@ -350,6 +339,7 @@ ggplot(data = long_train) +
   aes(x = LONGITUDE, y = LATITUDE) +
   geom_point(color = "#0c4c8a") +
   theme_minimal()
+
 # to only TOP signal waps <-  # the TOP signals do not cover buildings completely!
 ggplot(data = top_signals_df) +
   aes(x = LONGITUDE, y = LATITUDE) +
@@ -411,10 +401,6 @@ compress <- preProcess(wide_train[ ,vars_waps_tr],
                        method = c("center", "scale", "pca"), 
                        thresh = 0.80) # PCA needed 77 components to capture 80 percent of the variance
 
-  # compress_newtr <- preProcess(new_wide_train[ ,vars_waps_trnew], 
-  #                               method = c("center", "scale", "pca"), 
-  #                               thresh = 0.80) # PCA needed 63 components to capture 80 percent of the variance
-  # 
 
 
 # PCA visualization
@@ -455,27 +441,17 @@ testing_PCA <- cbind(testing_PCA, vars_not_waps_tst)
 
 # Preparing the NEW TRAIN and TEST set for PCA
 
-      # new_training_PCA <-  predict(compress_newtr, new_wide_train[,vars_waps_trnew])
-      # vars_not_waps_newtr <- new_wide_train[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
-      #                                    "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
-      # new_training_PCA <- cbind(new_training_PCA, vars_not_waps_newtr)
- 
-
 testing_newPCA <- predict(compress, new_test[,vars_waps_newtst])
 vars_not_waps_newtst <- new_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
                                    "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
 testing_newPCA <- testing_newPCA[ , -c(1:208)]
 testing_newPCA <- cbind(testing_newPCA, vars_not_waps_newtst)
 
-      # new_testing_PCA <- predict(compress_newtr, new_test[,vars_waps_newtst])
-      # vars_not_waps_newtst <- new_test[ ,c("BUILDINGID","FLOOR","LONGITUDE", "LATITUDE",
-      #                                    "PHONEID", "USERID","SPACEID", "RELATIVEPOSITION")]
-      # new_testing_PCA <- cbind(new_testing_PCA, vars_not_waps_newtst)
-
 
 rm(PCs_sd, PCs_var, var_explained,
    vars_not_waps_tr, vars_not_waps_tst, vars_not_waps_newtst,
    compress)
+
 #################################### SAMPLING & CROSS-VALIDATION #####################################
 
 # Smart sampling
@@ -485,11 +461,7 @@ sample_train <- wide_train %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # i
 
 sample_PCA <- training_PCA %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes 727 samples from each building & floor
 
-      # sample_newtr <- new_wide_train %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes 727 samples from each building & floor
-      # 
-      # sample_newPCA <- new_training_PCA %>% group_by(BUILDINGID, FLOOR) %>% sample_n(727) # it takes 727 samples from each building & floor
 
-  
 
 # Cross-Validation
 fitControl <- trainControl(
@@ -585,6 +557,7 @@ testing_PCA$pred_building <- predB_RFpcs
 
 new_predB_RFwaps <- predict(buildingRF_waps, newdata = new_test) # BETTER ACCURACY IN TRAIN&VALIDATION
   # new_predB_RFpcs <- predict(buildingRF_pcs, newdata = testing_newPCA) 
+
 
 new_test$pred_building <- new_predB_RFwaps
 testing_newPCA$pred_building <- new_predB_RFwaps
@@ -788,12 +761,12 @@ latRF_waps <- readRDS("./Models/latRF_waps.rds")
 # Train a random forest using pcs instead of waps (sample_PCA)
 set.seed(123)
 # model with PCs instead of waps
-# system.time(latRF_pcs <- randomForest(y=sample_PCA$LATITUDE,
-#                                  x=sample_PCA[vars_latpcs],
-#                                  importance=T,
-#                                  method="rf",
-#                                  ntree=100))
-# saveRDS(latRF_pcs, "./Models/latRF_pcs.rds")
+  # system.time(latRF_pcs <- randomForest(y=sample_PCA$LATITUDE,
+  #                                  x=sample_PCA[vars_latpcs],
+  #                                  importance=T,
+  #                                  method="rf",
+  #                                  ntree=100))
+  # saveRDS(latRF_pcs, "./Models/latRF_pcs.rds")
 latRF_pcs <- readRDS("./Models/latRF_pcs.rds")
 
 #### TESTING MODELS FOR LATITUDE ####
